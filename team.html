@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Team History</title>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Fredoka', sans-serif; background: #f4f7f6; margin: 0; padding: 0; }
+        
+        /* Dynamic Header */
+        .header {
+            background: var(--team-color, #333); color: white; padding: 30px 20px;
+            text-align: center; box-shadow: 0 4px 10px rgba(0,0,0,0.2); position: sticky; top: 0; z-index: 100;
+        }
+        .header h1 { margin: 10px 0 5px 0; font-size: 2.5rem; }
+        .back-btn { 
+            position: absolute; top: 20px; left: 20px; background: rgba(255,255,255,0.2); 
+            color: white; border: none; padding: 8px 15px; border-radius: 20px; font-weight: bold; cursor: pointer;
+            text-decoration: none; font-size: 1rem;
+        }
+
+        /* List of Games */
+        .game-list { max-width: 600px; margin: 20px auto; padding: 0 15px; }
+        .game-row {
+            background: white; border-radius: 15px; padding: 15px; margin-bottom: 12px;
+            display: flex; align-items: center; justify-content: space-between;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+        .game-date { font-size: 0.8rem; color: #888; width: 60px; }
+        .opponent { display: flex; align-items: center; gap: 10px; flex: 1; }
+        .opponent img { width: 40px; height: 40px; object-fit: contain; }
+        .opponent-name { font-weight: bold; color: #333; }
+        .result { font-size: 1.2rem; font-weight: bold; width: 80px; text-align: right; }
+        
+        .win { color: #2e7d32; } /* Green */
+        .loss { color: #c62828; } /* Red */
+        .future { color: #555; font-size: 0.9rem; }
+    </style>
+</head>
+<body>
+
+    <div class="header" id="header">
+        <a href="index.html" class="back-btn">← Back</a>
+        <h1 id="teamName">Loading...</h1>
+    </div>
+
+    <div class="game-list" id="games">
+        <p align="center">Fetching full season history...</p>
+    </div>
+
+    <script>
+        // Parse URL params
+        const params = new URLSearchParams(window.location.search);
+        const TEAM_ID = params.get('id');
+        const SPORT = params.get('sport');   // e.g. 'basketball'
+        const LEAGUE = params.get('league'); // e.g. 'nba'
+        const COLOR = decodeURIComponent(params.get('color'));
+        const NAME = params.get('name');
+
+        // Apply Theme
+        document.getElementById('header').style.setProperty('--team-color', COLOR);
+        document.getElementById('teamName').innerText = NAME || "Team Schedule";
+
+        async function loadHistory() {
+            // Fetch Current Season (ESPN API)
+            // This endpoint gives us the full list of past and future games
+            const url = `https://site.api.espn.com/apis/site/v2/sports/${SPORT}/${LEAGUE}/teams/${TEAM_ID}/schedule`;
+            
+            try {
+                const res = await fetch(url);
+                const data = await res.json();
+                const events = data.events || [];
+                renderGames(events);
+            } catch(e) {
+                document.getElementById('games').innerHTML = "<p align='center'>Error loading history.</p>";
+            }
+        }
+
+        function renderGames(events) {
+            const container = document.getElementById('games');
+            container.innerHTML = '';
+
+            // Sort: Most recent completed games at top? Or chronological?
+            // "Year back" implies seeing the past. Let's do reverse chronological (newest first)
+            // But usually schedules are chronological. Let's stick to Chronological but scroll to "Today"?
+            // Actually, for a history view, Newest at top is usually best for "What just happened?"
+            // Let's list ALL games chronologically.
+            
+            events.forEach(event => {
+                const game = event.competitions[0];
+                const isHome = game.competitors[0].team.id === TEAM_ID; // Are we home?
+                // We need to find the "Other" team
+                const opponent = game.competitors.find(c => c.team.id !== TEAM_ID);
+                const myTeam = game.competitors.find(c => c.team.id === TEAM_ID);
+                
+                const dateObj = new Date(event.date);
+                const dateStr = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                
+                const div = document.createElement('div');
+                div.className = 'game-row';
+
+                let resultHTML = "";
+                if (event.status.type.completed) {
+                    const myScore = parseInt(myTeam.score?.value || 0);
+                    const opScore = parseInt(opponent.score?.value || 0);
+                    const isWin = myScore > opScore;
+                    
+                    resultHTML = `<span class="result ${isWin ? 'win' : 'loss'}">
+                        ${isWin ? 'W' : 'L'} ${myScore}-${opScore}
+                    </span>`;
+                } else {
+                    resultHTML = `<span class="result future">${dateObj.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>`;
+                }
+
+                div.innerHTML = `
+                    <span class="game-date">${dateStr}</span>
+                    <div class="opponent">
+                        <img src="${opponent.team.logos?.[0]?.href || ''}">
+                        <span class="opponent-name">${opponent.team.abbreviation || opponent.team.shortDisplayName}</span>
+                    </div>
+                    ${resultHTML}
+                `;
+                container.appendChild(div);
+            });
+            
+            // Auto-scroll to bottom (most recent) if chronological? 
+            // Or if we listed them normal way, the bottom is the future.
+            // Let's just leave it as a list.
+        }
+
+        loadHistory();
+    </script>
+</body>
+</html>

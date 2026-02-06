@@ -2,18 +2,18 @@ import requests
 import json
 from datetime import datetime, timedelta
 
-# How many days back/forward to fetch?
+# Fetch a tight window for the main page (keeps it fast)
 DAYS_BACK = 3
 DAYS_FORWARD = 3
 
-# EXPANDED LEAGUE LIST
+# Added 'sport' and 'league_slug' for the new Team Page
 LEAGUES = [
-    {"key": "nfl", "url": "http://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard", "name": "NFL"},
-    {"key": "ncaa_fb", "url": "http://site.api.espn.com/apis/site/v2/sports/football/college-football/scoreboard", "name": "College Football"},
-    {"key": "nba", "url": "http://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard", "name": "NBA"},
-    {"key": "wnba", "url": "http://site.api.espn.com/apis/site/v2/sports/basketball/wnba/scoreboard", "name": "WNBA"},
-    {"key": "ncaa_mb", "url": "http://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/scoreboard", "name": "Men's College Hoops"},
-    {"key": "ncaa_wb", "url": "http://site.api.espn.com/apis/site/v2/sports/basketball/womens-college-basketball/scoreboard", "name": "Women's College Hoops"}
+    {"key": "nfl", "sport": "football", "league_slug": "nfl", "url": "http://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard", "name": "NFL"},
+    {"key": "ncaa_fb", "sport": "football", "league_slug": "college-football", "url": "http://site.api.espn.com/apis/site/v2/sports/football/college-football/scoreboard", "name": "College Football"},
+    {"key": "nba", "sport": "basketball", "league_slug": "nba", "url": "http://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard", "name": "NBA"},
+    {"key": "wnba", "sport": "basketball", "league_slug": "wnba", "url": "http://site.api.espn.com/apis/site/v2/sports/basketball/wnba/scoreboard", "name": "WNBA"},
+    {"key": "ncaa_mb", "sport": "basketball", "league_slug": "mens-college-basketball", "url": "http://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/scoreboard", "name": "Men's College Hoops"},
+    {"key": "ncaa_wb", "sport": "basketball", "league_slug": "womens-college-basketball", "url": "http://site.api.espn.com/apis/site/v2/sports/basketball/womens-college-basketball/scoreboard", "name": "Women's College Hoops"}
 ]
 
 def get_date_str(offset):
@@ -44,12 +44,15 @@ for offset in range(-DAYS_BACK, DAYS_FORWARD + 1):
 
                 game_data = {
                     "id": event['id'],
-                    "league": league['name'],      # Display Name (e.g. "NBA")
-                    "league_key": league['key'],   # Code for filtering (e.g. "nba")
+                    "league": league['name'],
+                    "league_key": league['key'],
+                    "sport": league['sport'],        # NEW: needed for deep links
+                    "league_slug": league['league_slug'], # NEW: needed for deep links
                     "date_label": date_key,
                     "status": event['status']['type']['shortDetail'],
                     "completed": event['status']['type']['completed'],
                     "home": {
+                        "id": home['team']['id'],    # NEW: needed for team history
                         "name": home['team']['shortDisplayName'],
                         "score": home['score'],
                         "logo": home['team'].get('logo', ''),
@@ -57,6 +60,7 @@ for offset in range(-DAYS_BACK, DAYS_FORWARD + 1):
                         "record": home.get('records', [{'summary':'0-0'}])[0]['summary']
                     },
                     "away": {
+                        "id": away['team']['id'],    # NEW
                         "name": away['team']['shortDisplayName'],
                         "score": away['score'],
                         "logo": away['team'].get('logo', ''),
@@ -66,7 +70,7 @@ for offset in range(-DAYS_BACK, DAYS_FORWARD + 1):
                 }
                 daily_games.append(game_data)
         except Exception as e:
-            pass # Skip if league has no games that day
+            pass
 
     all_data[date_str] = daily_games
 
