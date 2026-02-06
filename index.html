@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Junior Scoreboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        :root { --bg: #f4f7f6; --card-bg: #ffffff; }
+        body { font-family: 'Fredoka', sans-serif; background: var(--bg); margin: 0; padding: 20px; }
+        
+        h1 { text-align: center; color: #333; margin-bottom: 20px; }
+        
+        /* Filter Buttons */
+        .filters { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 15px; justify-content: center; }
+        .filter-btn {
+            background: white; border: 2px solid #ddd; border-radius: 20px;
+            padding: 8px 16px; font-weight: 600; cursor: pointer; white-space: nowrap;
+        }
+        .filter-btn.active { background: #333; color: white; border-color: #333; }
+
+        /* Responsive Grid */
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 15px; }
+
+        /* The Game Card */
+        .card {
+            background: var(--card-bg); border-radius: 24px; padding: 15px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08); position: relative;
+            display: flex; flex-direction: column; align-items: center;
+            transition: transform 0.2s;
+        }
+        
+        /* Fun Feature: Winner Glow */
+        .card.winner-home { border-bottom: 6px solid; border-bottom-color: var(--home-color); }
+        .card.winner-away { border-bottom: 6px solid; border-bottom-color: var(--away-color); }
+
+        .league-badge {
+            background: #eee; font-size: 0.8rem; padding: 4px 10px; border-radius: 10px;
+            margin-bottom: 10px; color: #666;
+        }
+
+        .matchup { display: flex; align-items: center; justify-content: space-between; width: 100%; }
+        
+        .team { display: flex; flex-direction: column; align-items: center; flex: 1; }
+        .team img { width: 60px; height: 60px; object-fit: contain; }
+        .team-name { font-size: 1rem; margin-top: 5px; text-align: center; line-height: 1.2; }
+        .record { font-size: 0.8rem; color: #888; margin-top: 2px; }
+
+        .score-board { text-align: center; flex: 0 0 80px; }
+        .score { font-size: 1.8rem; font-weight: 600; color: #333; display: block; }
+        .status { font-size: 0.8rem; color: #999; margin-top: 4px; }
+
+        /* Mobile tweak for very small screens */
+        @media (max-width: 350px) {
+            .matchup { gap: 5px; }
+            .team img { width: 50px; height: 50px; }
+        }
+    </style>
+</head>
+<body>
+
+    <h1>🏆 Sports Math!</h1>
+    
+    <div class="filters" id="filters">
+        <button class="filter-btn active" onclick="filter('ALL')">All Sports</button>
+        <button class="filter-btn" onclick="filter('NBA')">NBA</button>
+        <button class="filter-btn" onclick="filter('NFL')">NFL</button>
+        <button class="filter-btn" onclick="filter('NCAA')">College</button>
+    </div>
+
+    <div class="grid" id="app">Loading Scores...</div>
+
+    <script>
+        let allGames = [];
+
+        async function loadScores() {
+            try {
+                // Add timestamp to prevent caching
+                const res = await fetch('scores.json?t=' + Date.now());
+                allGames = await res.json();
+                render(allGames);
+            } catch (e) {
+                document.getElementById('app').innerHTML = "<p>Updating stats...</p>";
+            }
+        }
+
+        function render(games) {
+            const container = document.getElementById('app');
+            container.innerHTML = '';
+
+            games.forEach(game => {
+                const div = document.createElement('div');
+                div.className = 'card';
+                
+                // Fun Logic: Assign CSS variables for team colors so we can use them in the border
+                div.style.setProperty('--home-color', game.home.color);
+                div.style.setProperty('--away-color', game.away.color);
+
+                // Highlight winner
+                if (game.completed) {
+                    if (parseInt(game.home.score) > parseInt(game.away.score)) div.classList.add('winner-home');
+                    else div.classList.add('winner-away');
+                }
+
+                div.innerHTML = `
+                    <div class="league-badge">${game.league}</div>
+                    <div class="matchup">
+                        <div class="team">
+                            <img src="${game.away.logo}" alt="${game.away.name}">
+                            <div class="team-name">${game.away.name}</div>
+                            <div class="record">${game.away.record}</div>
+                        </div>
+                        <div class="score-board">
+                            <span class="score">${game.away.score} - ${game.home.score}</span>
+                            <div class="status">${game.status}</div>
+                        </div>
+                        <div class="team">
+                            <img src="${game.home.logo}" alt="${game.home.name}">
+                            <div class="team-name">${game.home.name}</div>
+                            <div class="record">${game.home.record}</div>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        function filter(type) {
+            // Visual update for buttons
+            document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+            event.target.classList.add('active');
+
+            if (type === 'ALL') return render(allGames);
+            const filtered = allGames.filter(g => g.league.includes(type) || (type === 'NCAA' && g.league.includes('NCAA')));
+            render(filtered);
+        }
+
+        loadScores();
+    </script>
+</body>
+</html>

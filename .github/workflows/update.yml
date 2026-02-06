@@ -1,0 +1,34 @@
+name: Update Scores
+on:
+  schedule:
+    - cron: '0 * * * *' # Runs every hour on the hour
+  workflow_dispatch: # Allows you to manually trigger it from GitHub UI
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install libraries
+        run: pip install requests
+
+      - name: Fetch Data
+        run: python scripts/fetch_scores.py
+
+      - name: Commit and Push
+        run: |
+          git config --global user.name "ScoreBot"
+          git config --global user.email "bot@noreply.github.com"
+          git add scores.json
+          git commit -m "Auto-update scores" || exit 0
+          git push
