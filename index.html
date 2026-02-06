@@ -17,7 +17,7 @@
         .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 15px; padding: 20px; }
         .card { background: var(--card-bg); border-radius: 24px; padding: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); display: flex; flex-direction: column; align-items: center; }
         .matchup { display: flex; align-items: center; justify-content: space-between; width: 100%; }
-        .team { display: flex; flex-direction: column; align-items: center; flex: 1; cursor: pointer; } /* Cursor pointer to hint clickable */
+        .team { display: flex; flex-direction: column; align-items: center; flex: 1; cursor: pointer; } 
         .team img { width: 55px; height: 55px; object-fit: contain; }
         .team-name { font-size: 0.85rem; margin-top: 5px; text-align: center; }
         .record { font-size: 0.75rem; color: #888; }
@@ -79,18 +79,9 @@
                     else div.classList.add('winner-away');
                 }
                 
-                // CLICK HANDLER: Opens team.html with params
-                const openTeam = (team, isHome) => {
-                    const colorEncoded = encodeURIComponent(team.color);
-                    // We need the sport and league_slug from the Python script
-                    window.location.href = `team.html?id=${team.id}&sport=${game.sport}&league=${game.league_slug}&color=${colorEncoded}&name=${team.name}`;
-                };
-
-                // We construct the HTML strings but add onclick events via JS usually, 
-                // but here simpler inline onclicks for the kid-friendly prototype
                 div.innerHTML = `
                     <div class="matchup">
-                        <div class="team" onclick="location.href='team.html?id=${game.away.id}&sport=${game.sport}&league=${game.league_slug}&color=${encodeURIComponent(game.away.color)}&name=${game.away.name}'">
+                        <div class="team" onclick="location.href='team.html?id=${game.away.id}&color=${encodeURIComponent(game.away.color)}&name=${game.away.name}'">
                             <img src="${game.away.logo}">
                             <div class="team-name">${game.away.name}</div>
                             <div class="record">${game.away.record}</div>
@@ -99,7 +90,7 @@
                             <span class="score">${game.away.score}-${game.home.score}</span>
                             <div class="status">${game.status}</div>
                         </div>
-                        <div class="team" onclick="location.href='team.html?id=${game.home.id}&sport=${game.sport}&league=${game.league_slug}&color=${encodeURIComponent(game.home.color)}&name=${game.home.name}'">
+                        <div class="team" onclick="location.href='team.html?id=${game.home.id}&color=${encodeURIComponent(game.home.color)}&name=${game.home.name}'">
                             <img src="${game.home.logo}">
                             <div class="team-name">${game.home.name}</div>
                             <div class="record">${game.home.record}</div>

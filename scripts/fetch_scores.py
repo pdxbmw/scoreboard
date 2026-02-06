@@ -1,12 +1,13 @@
 import requests
 import json
+import os
+import time
 from datetime import datetime, timedelta
 
-# Fetch a tight window for the main page (keeps it fast)
-DAYS_BACK = 3
-DAYS_FORWARD = 3
+# Window for the main scoreboard (keep small for speed)
+DAYS_BACK = 5
+DAYS_FORWARD = 5
 
-# Added 'sport' and 'league_slug' for the new Team Page
 LEAGUES = [
     {"key": "nfl", "sport": "football", "league_slug": "nfl", "url": "http://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard", "name": "NFL"},
     {"key": "ncaa_fb", "sport": "football", "league_slug": "college-football", "url": "http://site.api.espn.com/apis/site/v2/sports/football/college-football/scoreboard", "name": "College Football"},
@@ -24,11 +25,14 @@ def pretty_date(offset):
     return d.strftime('%A, %b %d')
 
 all_data = {}
+teams_to_fetch = set() # Stores unique (id, sport, league_slug)
 
+# 1. FETCH MAIN SCOREBOARD
+print("--- Fetching Scoreboard ---")
 for offset in range(-DAYS_BACK, DAYS_FORWARD + 1):
     date_str = get_date_str(offset)
     date_key = pretty_date(offset)
-    print(f"Fetching for {date_key}...")
+    print(f"Processing {date_key}...")
     
     daily_games = []
     
@@ -41,18 +45,24 @@ for offset in range(-DAYS_BACK, DAYS_FORWARD + 1):
                 comp = event['competitions'][0]
                 home = comp['competitors'][0]
                 away = comp['competitors'][1]
+                
+                # Capture teams for deep history fetching later
+                if 'id' in home['team']:
+                    teams_to_fetch.add((home['team']['id'], league['sport'], league['league_slug']))
+                if 'id' in away['team']:
+                    teams_to_fetch.add((away['team']['id'], league['sport'], league['league_slug']))
 
                 game_data = {
                     "id": event['id'],
                     "league": league['name'],
                     "league_key": league['key'],
-                    "sport": league['sport'],        # NEW: needed for deep links
-                    "league_slug": league['league_slug'], # NEW: needed for deep links
+                    "sport": league['sport'],
+                    "league_slug": league['league_slug'],
                     "date_label": date_key,
                     "status": event['status']['type']['shortDetail'],
                     "completed": event['status']['type']['completed'],
                     "home": {
-                        "id": home['team']['id'],    # NEW: needed for team history
+                        "id": home['team']['id'],
                         "name": home['team']['shortDisplayName'],
                         "score": home['score'],
                         "logo": home['team'].get('logo', ''),
@@ -60,7 +70,7 @@ for offset in range(-DAYS_BACK, DAYS_FORWARD + 1):
                         "record": home.get('records', [{'summary':'0-0'}])[0]['summary']
                     },
                     "away": {
-                        "id": away['team']['id'],    # NEW
+                        "id": away['team']['id'],
                         "name": away['team']['shortDisplayName'],
                         "score": away['score'],
                         "logo": away['team'].get('logo', ''),
@@ -69,10 +79,34 @@ for offset in range(-DAYS_BACK, DAYS_FORWARD + 1):
                     }
                 }
                 daily_games.append(game_data)
-        except Exception as e:
+        except Exception:
             pass
 
     all_data[date_str] = daily_games
 
+# Save Main Scoreboard
 with open('scores.json', 'w') as f:
     json.dump(all_data, f)
+
+# 2. FETCH INDIVIDUAL TEAM HISTORIES (The Fix for CORS)
+print(f"--- Fetching History for {len(teams_to_fetch)} Teams ---")
+if not os.path.exists("teams"):
+    os.makedirs("teams")
+
+for (team_id, sport, league_slug) in teams_to_fetch:
+    try:
+        # Fetch the FULL schedule for this team
+        url = f"https://site.api.espn.com/apis/site/v2/sports/{sport}/{league_slug}/teams/{team_id}/schedule"
+        data = requests.get(url).json()
+        
+        # Save to teams/TEAM_ID.json
+        with open(f"teams/{team_id}.json", 'w') as f:
+            json.dump(data, f)
+            
+    except Exception as e:
+        print(f"Failed to fetch team {team_id}: {e}")
+    
+    # Sleep briefly to be nice to ESPN's API
+    time.sleep(0.1)
+
+print("--- Update Complete ---")
