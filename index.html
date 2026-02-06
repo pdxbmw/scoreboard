@@ -6,116 +6,163 @@
     <title>Junior Scoreboard</title>
     <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600&display=swap" rel="stylesheet">
     <style>
-        :root { --bg: #f4f7f6; --card-bg: #ffffff; }
-        body { font-family: 'Fredoka', sans-serif; background: var(--bg); margin: 0; padding: 20px; }
+        :root { --bg: #f4f7f6; --card-bg: #ffffff; --primary: #333; }
+        body { font-family: 'Fredoka', sans-serif; background: var(--bg); margin: 0; padding-bottom: 40px; }
         
-        h1 { text-align: center; color: #333; margin-bottom: 20px; }
-        
-        /* Filter Buttons */
-        .filters { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 15px; justify-content: center; }
+        /* DATE NAVIGATOR */
+        .date-nav {
+            background: #fff; padding: 10px; position: sticky; top: 0; z-index: 100;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1); display: flex; justify-content: space-between; align-items: center;
+        }
+        .nav-btn { background: #f0f0f0; border: none; padding: 8px 16px; border-radius: 20px; font-weight: bold; font-size: 1.2rem; cursor: pointer; }
+        .current-date { font-size: 1.1rem; font-weight: 600; color: #333; }
+
+        /* FILTER BUTTONS (Scrollable) */
+        .filters { 
+            display: flex; gap: 8px; overflow-x: auto; padding: 15px 15px 5px 15px; 
+            -webkit-overflow-scrolling: touch; /* Smooth scroll on mobile */
+        }
         .filter-btn {
-            background: white; border: 2px solid #ddd; border-radius: 20px;
-            padding: 8px 16px; font-weight: 600; cursor: pointer; white-space: nowrap;
+            background: white; border: 1px solid #ddd; border-radius: 20px;
+            padding: 8px 14px; font-weight: 600; font-size: 0.9rem; cursor: pointer; white-space: nowrap;
+            color: #555; display: flex; align-items: center; gap: 5px;
         }
         .filter-btn.active { background: #333; color: white; border-color: #333; }
 
-        /* Responsive Grid */
-        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 15px; }
+        /* GRID */
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 15px; padding: 20px; }
 
-        /* The Game Card */
+        /* CARD */
         .card {
             background: var(--card-bg); border-radius: 24px; padding: 15px;
             box-shadow: 0 4px 12px rgba(0,0,0,0.08); position: relative;
             display: flex; flex-direction: column; align-items: center;
-            transition: transform 0.2s;
         }
-        
-        /* Fun Feature: Winner Glow */
-        .card.winner-home { border-bottom: 6px solid; border-bottom-color: var(--home-color); }
-        .card.winner-away { border-bottom: 6px solid; border-bottom-color: var(--away-color); }
-
-        .league-badge {
-            background: #eee; font-size: 0.8rem; padding: 4px 10px; border-radius: 10px;
-            margin-bottom: 10px; color: #666;
-        }
-
         .matchup { display: flex; align-items: center; justify-content: space-between; width: 100%; }
         
-        .team { display: flex; flex-direction: column; align-items: center; flex: 1; }
-        .team img { width: 60px; height: 60px; object-fit: contain; }
-        .team-name { font-size: 1rem; margin-top: 5px; text-align: center; line-height: 1.2; }
-        .record { font-size: 0.8rem; color: #888; margin-top: 2px; }
+        .team { display: flex; flex-direction: column; align-items: center; flex: 1; cursor: pointer; }
+        .team img { width: 55px; height: 55px; object-fit: contain; transition: transform 0.2s; }
+        .team:active img { transform: scale(0.9); }
+        
+        .team-name { font-size: 0.85rem; margin-top: 5px; text-align: center; line-height: 1.2; }
+        .record { font-size: 0.75rem; color: #888; }
+        
+        .score-board { text-align: center; flex: 0 0 85px; }
+        .score { font-size: 1.8rem; font-weight: 600; color: #333; }
+        .status { font-size: 0.75rem; color: #999; background: #eee; padding: 2px 8px; border-radius: 8px; }
 
-        .score-board { text-align: center; flex: 0 0 80px; }
-        .score { font-size: 1.8rem; font-weight: 600; color: #333; display: block; }
-        .status { font-size: 0.8rem; color: #999; margin-top: 4px; }
+        /* WINNER GLOW */
+        .winner-home { border-bottom: 6px solid; border-bottom-color: var(--home-color); }
+        .winner-away { border-bottom: 6px solid; border-bottom-color: var(--away-color); }
 
-        /* Mobile tweak for very small screens */
-        @media (max-width: 350px) {
-            .matchup { gap: 5px; }
-            .team img { width: 50px; height: 50px; }
+        /* HISTORY MODAL */
+        .modal {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.8); z-index: 200; align-items: center; justify-content: center;
         }
+        .modal-content {
+            background: white; width: 90%; max-width: 400px; max-height: 80vh; overflow-y: auto;
+            border-radius: 20px; padding: 20px; animation: popUp 0.3s ease;
+        }
+        @keyframes popUp { from { transform: scale(0.8); } to { transform: scale(1); } }
+        .close-btn { background: #ff4444; color: white; border: none; padding: 5px 15px; border-radius: 10px; font-weight: bold; float: right;}
     </style>
 </head>
 <body>
 
-    <h1>🏆 Sports Math!</h1>
-    
-    <div class="filters" id="filters">
-        <button class="filter-btn active" onclick="filter('ALL')">All Sports</button>
-        <button class="filter-btn" onclick="filter('NBA')">NBA</button>
-        <button class="filter-btn" onclick="filter('NFL')">NFL</button>
-        <button class="filter-btn" onclick="filter('NCAA')">College</button>
+    <div class="date-nav">
+        <button class="nav-btn" onclick="changeDate(-1)">←</button>
+        <div class="current-date" id="dateDisplay">Today</div>
+        <button class="nav-btn" onclick="changeDate(1)">→</button>
     </div>
 
-    <div class="grid" id="app">Loading Scores...</div>
+    <div class="filters">
+        <button class="filter-btn active" onclick="filter('ALL')">🌍 All</button>
+        <button class="filter-btn" onclick="filter('nfl')">🏈 NFL</button>
+        <button class="filter-btn" onclick="filter('ncaa_fb')">🏈 NCAA FB</button>
+        <button class="filter-btn" onclick="filter('nba')">🏀 NBA</button>
+        <button class="filter-btn" onclick="filter('wnba')">🏀 WNBA</button>
+        <button class="filter-btn" onclick="filter('ncaa_mb')">🏀 NCAA Men</button>
+        <button class="filter-btn" onclick="filter('ncaa_wb')">🏀 NCAA Women</button>
+    </div>
+
+    <div class="grid" id="app">Loading...</div>
+
+    <div class="modal" id="historyModal">
+        <div class="modal-content">
+            <button class="close-btn" onclick="closeModal()">X</button>
+            <h2 id="modalTitle">History</h2>
+            <div id="modalGames"></div>
+        </div>
+    </div>
 
     <script>
-        let allGames = [];
+        let allData = {};
+        let dateKeys = [];
+        let currentIndex = 0;
+        let currentFilter = 'ALL'; // Store the active filter
 
-        async function loadScores() {
+        async function init() {
             try {
-                // Add timestamp to prevent caching
                 const res = await fetch('scores.json?t=' + Date.now());
-                allGames = await res.json();
-                render(allGames);
+                allData = await res.json();
+                dateKeys = Object.keys(allData).sort();
+                
+                const todayStr = new Date().toISOString().slice(0,10).replace(/-/g,"");
+                currentIndex = dateKeys.indexOf(todayStr);
+                if (currentIndex === -1) currentIndex = Math.floor(dateKeys.length / 2);
+
+                render();
             } catch (e) {
-                document.getElementById('app').innerHTML = "<p>Updating stats...</p>";
+                document.getElementById('app').innerHTML = "<p align='center'>Updating stats... Refresh soon!</p>";
             }
         }
 
-        function render(games) {
+        function render() {
+            const dateKey = dateKeys[currentIndex];
+            const games = allData[dateKey] || [];
+            
+            // Set Date Header
+            document.getElementById('dateDisplay').innerText = games.length > 0 ? games[0].date_label : "No Games";
+
             const container = document.getElementById('app');
             container.innerHTML = '';
 
-            games.forEach(game => {
+            // Apply the current filter
+            const filteredGames = games.filter(g => {
+                if (currentFilter === 'ALL') return true;
+                return g.league_key === currentFilter;
+            });
+
+            if(filteredGames.length === 0) {
+                container.innerHTML = "<p align='center' style='grid-column: 1/-1; color:#888;'>No games for this sport today.</p>";
+                return;
+            }
+
+            filteredGames.forEach(game => {
                 const div = document.createElement('div');
                 div.className = 'card';
-                
-                // Fun Logic: Assign CSS variables for team colors so we can use them in the border
                 div.style.setProperty('--home-color', game.home.color);
                 div.style.setProperty('--away-color', game.away.color);
 
-                // Highlight winner
                 if (game.completed) {
                     if (parseInt(game.home.score) > parseInt(game.away.score)) div.classList.add('winner-home');
                     else div.classList.add('winner-away');
                 }
 
                 div.innerHTML = `
-                    <div class="league-badge">${game.league}</div>
                     <div class="matchup">
-                        <div class="team">
-                            <img src="${game.away.logo}" alt="${game.away.name}">
+                        <div class="team" onclick="showHistory('${game.away.name}')">
+                            <img src="${game.away.logo}">
                             <div class="team-name">${game.away.name}</div>
                             <div class="record">${game.away.record}</div>
                         </div>
                         <div class="score-board">
-                            <span class="score">${game.away.score} - ${game.home.score}</span>
+                            <span class="score">${game.away.score}-${game.home.score}</span>
                             <div class="status">${game.status}</div>
                         </div>
-                        <div class="team">
-                            <img src="${game.home.logo}" alt="${game.home.name}">
+                        <div class="team" onclick="showHistory('${game.home.name}')">
+                            <img src="${game.home.logo}">
                             <div class="team-name">${game.home.name}</div>
                             <div class="record">${game.home.record}</div>
                         </div>
@@ -125,17 +172,59 @@
             });
         }
 
-        function filter(type) {
-            // Visual update for buttons
+        function filter(key) {
+            currentFilter = key;
+            // Visual Update for buttons
             document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-            event.target.classList.add('active');
-
-            if (type === 'ALL') return render(allGames);
-            const filtered = allGames.filter(g => g.league.includes(type) || (type === 'NCAA' && g.league.includes('NCAA')));
-            render(filtered);
+            event.currentTarget.classList.add('active');
+            render();
         }
 
-        loadScores();
+        function changeDate(delta) {
+            const newIndex = currentIndex + delta;
+            if (newIndex >= 0 && newIndex < dateKeys.length) {
+                currentIndex = newIndex;
+                render();
+            }
+        }
+
+        function showHistory(teamName) {
+            const modal = document.getElementById('historyModal');
+            const list = document.getElementById('modalGames');
+            document.getElementById('modalTitle').innerText = teamName;
+            list.innerHTML = '';
+
+            let foundGames = [];
+            dateKeys.forEach(date => {
+                const dayGames = allData[date];
+                dayGames.forEach(g => {
+                    if (g.home.name === teamName || g.away.name === teamName) {
+                        foundGames.push(g);
+                    }
+                });
+            });
+
+            foundGames.forEach(g => {
+                const row = document.createElement('div');
+                row.style.cssText = "display:flex; justify-content:space-between; padding:10px; border-bottom:1px solid #eee; align-items:center;";
+                row.innerHTML = `
+                    <span style="font-size:0.8rem; color:#666; width:60px;">${g.date_label.split(',')[0]}</span>
+                    <span style="font-weight:bold;">${g.away.name} ${g.away.score}</span>
+                    <span style="color:#888;">vs</span>
+                    <span style="font-weight:bold;">${g.home.name} ${g.home.score}</span>
+                `;
+                list.appendChild(row);
+            });
+
+            if(foundGames.length === 0) list.innerHTML = "<p>No other games found this week.</p>";
+            modal.style.display = 'flex';
+        }
+
+        function closeModal() {
+            document.getElementById('historyModal').style.display = 'none';
+        }
+
+        init();
     </script>
 </body>
 </html>

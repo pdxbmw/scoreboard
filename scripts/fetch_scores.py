@@ -1,62 +1,74 @@
 import requests
 import json
-import os
+from datetime import datetime, timedelta
 
-# Define the leagues we want
+# How many days back/forward to fetch?
+DAYS_BACK = 3
+DAYS_FORWARD = 3
+
+# EXPANDED LEAGUE LIST
 LEAGUES = [
-    {"key": "nba", "url": "http://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard", "name": "NBA"},
     {"key": "nfl", "url": "http://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard", "name": "NFL"},
-    {"key": "ncaa_fb", "url": "http://site.api.espn.com/apis/site/v2/sports/football/college-football/scoreboard", "name": "NCAA Football"},
-    {"key": "ncaa_bb", "url": "http://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/scoreboard", "name": "NCAA Men's"}
+    {"key": "ncaa_fb", "url": "http://site.api.espn.com/apis/site/v2/sports/football/college-football/scoreboard", "name": "College Football"},
+    {"key": "nba", "url": "http://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard", "name": "NBA"},
+    {"key": "wnba", "url": "http://site.api.espn.com/apis/site/v2/sports/basketball/wnba/scoreboard", "name": "WNBA"},
+    {"key": "ncaa_mb", "url": "http://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/scoreboard", "name": "Men's College Hoops"},
+    {"key": "ncaa_wb", "url": "http://site.api.espn.com/apis/site/v2/sports/basketball/womens-college-basketball/scoreboard", "name": "Women's College Hoops"}
 ]
 
-def get_record(competitor):
-    """Safe extraction of win/loss records (The math part!)"""
-    if 'records' in competitor and competitor['records']:
-        return competitor['records'][0]['summary']
-    return "0-0"
+def get_date_str(offset):
+    return (datetime.now() + timedelta(days=offset)).strftime('%Y%m%d')
 
-all_games = []
+def pretty_date(offset):
+    d = datetime.now() + timedelta(days=offset)
+    return d.strftime('%A, %b %d')
 
-for league in LEAGUES:
-    try:
-        print(f"Fetching {league['name']}...")
-        resp = requests.get(league['url']).json()
-        
-        for event in resp.get('events', []):
-            comp = event['competitions'][0]
-            competitors = comp['competitors']
+all_data = {}
+
+for offset in range(-DAYS_BACK, DAYS_FORWARD + 1):
+    date_str = get_date_str(offset)
+    date_key = pretty_date(offset)
+    print(f"Fetching for {date_key}...")
+    
+    daily_games = []
+    
+    for league in LEAGUES:
+        try:
+            full_url = f"{league['url']}?dates={date_str}"
+            resp = requests.get(full_url).json()
             
-            # Identify Home and Away
-            home = next(c for c in competitors if c['homeAway'] == 'home')
-            away = next(c for c in competitors if c['homeAway'] == 'away')
+            for event in resp.get('events', []):
+                comp = event['competitions'][0]
+                home = comp['competitors'][0]
+                away = comp['competitors'][1]
 
-            game_data = {
-                "league": league['name'],
-                "status": event['status']['type']['shortDetail'], # e.g. "Final" or "10:30 4th"
-                "completed": event['status']['type']['completed'],
-                "home": {
-                    "name": home['team']['shortDisplayName'],
-                    "score": home['score'],
-                    "logo": home['team'].get('logo', ''),
-                    "color": f"#{home['team'].get('color', '333333')}", # Default to grey if no color
-                    "record": get_record(home),
-                    "winner": home.get('winner', False)
-                },
-                "away": {
-                    "name": away['team']['shortDisplayName'],
-                    "score": away['score'],
-                    "logo": away['team'].get('logo', ''),
-                    "color": f"#{away['team'].get('color', '333333')}",
-                    "record": get_record(away),
-                    "winner": away.get('winner', False)
+                game_data = {
+                    "id": event['id'],
+                    "league": league['name'],      # Display Name (e.g. "NBA")
+                    "league_key": league['key'],   # Code for filtering (e.g. "nba")
+                    "date_label": date_key,
+                    "status": event['status']['type']['shortDetail'],
+                    "completed": event['status']['type']['completed'],
+                    "home": {
+                        "name": home['team']['shortDisplayName'],
+                        "score": home['score'],
+                        "logo": home['team'].get('logo', ''),
+                        "color": f"#{home['team'].get('color', '333333')}",
+                        "record": home.get('records', [{'summary':'0-0'}])[0]['summary']
+                    },
+                    "away": {
+                        "name": away['team']['shortDisplayName'],
+                        "score": away['score'],
+                        "logo": away['team'].get('logo', ''),
+                        "color": f"#{away['team'].get('color', '333333')}",
+                        "record": away.get('records', [{'summary':'0-0'}])[0]['summary']
+                    }
                 }
-            }
-            all_games.append(game_data)
-            
-    except Exception as e:
-        print(f"Skipping {league['name']} due to error: {e}")
+                daily_games.append(game_data)
+        except Exception as e:
+            pass # Skip if league has no games that day
 
-# Save to the root directory so index.html can find it
+    all_data[date_str] = daily_games
+
 with open('scores.json', 'w') as f:
-    json.dump(all_games, f)
+    json.dump(all_data, f)
