@@ -79,6 +79,42 @@
             const b = num & 255;
             return `rgba(${r},${g},${b},${alpha})`;
         }
+
+        function parseLocalStatusTime(dateKey, status, isoDate) {
+            // Prefer ISO date if provided (has timezone/UTC offset)
+            if (isoDate) {
+                const dIso = new Date(isoDate);
+                if (!isNaN(dIso.getTime())) {
+                    return dIso.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+                }
+            }
+            if (!status || !dateKey) return null;
+            const timeMatch = status.match(/(\d{1,2}:\d{2}\s*[AP]M)/i);
+            if (!timeMatch) return null;
+            const tzMatch = status.match(/\b(ET|EST|EDT|CT|CST|CDT|MT|MST|MDT|PT|PST|PDT)\b/i);
+            const tz = tzMatch ? tzMatch[1].toUpperCase() : null;
+            const offsets = {
+                ET: -5, EST: -5, EDT: -4,
+                CT: -6, CST: -6, CDT: -5,
+                MT: -7, MST: -7, MDT: -6,
+                PT: -8, PST: -8, PDT: -7
+            };
+            const year = parseInt(dateKey.substring(0, 4), 10);
+            const month = parseInt(dateKey.substring(4, 6), 10);
+            const day = parseInt(dateKey.substring(6, 8), 10);
+            const timePart = timeMatch[1].replace(/\s+/g, ' ').trim();
+            const [hm, ampm] = timePart.split(/\s+/);
+            const [hStr, mStr] = hm.split(':');
+            let hour = parseInt(hStr, 10);
+            const minute = parseInt(mStr, 10);
+            if (ampm.toUpperCase() === 'PM' && hour !== 12) hour += 12;
+            if (ampm.toUpperCase() === 'AM' && hour === 12) hour = 0;
+            const offset = tz ? (offsets[tz] ?? -5) : -5; // default ET
+            const utcMs = Date.UTC(year, month - 1, day, hour - offset, minute);
+            const dLocal = new Date(utcMs);
+            if (isNaN(dLocal.getTime())) return null;
+            return dLocal.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+        }
         
         async function init() {
             try {
@@ -158,6 +194,7 @@
                             league_key: "nba",
                             status: status,
                             completed: comp.status?.type?.completed || false,
+                            date: event.date,
                             start_local: startLocal,
                             home: {
                                 id: home.team.id,
@@ -228,7 +265,16 @@
             const container = document.getElementById('app');
             container.innerHTML = '';
             
-            const filteredGames = games.filter(g => currentFilter === 'ALL' || g.league_key === currentFilter);
+            const filteredGames = games.filter(g => currentFilter === 'ALL' || g.league_key === currentFilter)
+                .map(g => {
+                    if (!g.start_local && g.date) {
+                        const d = new Date(g.date);
+                        if (!isNaN(d.getTime())) {
+                            g.start_local = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+                        }
+                    }
+                    return g;
+                });
             if(filteredGames.length === 0) { container.innerHTML = "<p align='center' style='color:#888;'>No games.</p>"; return; }
 
             filteredGames.forEach(game => {
@@ -262,7 +308,15 @@
                         displayStatus = `Q${quarterNum[1]}<br><span class="live-text">${timeMatch[1]}</span>`;
                     }
                 } else if (!game.completed) {
-                    displayStatus = game.start_local || game.status;
+                    const parsedLocal = parseLocalStatusTime(dateKey, game.status, game.date);
+                    if (game.start_local) {
+                        displayStatus = game.start_local;
+                    } else if (parsedLocal) {
+                        displayStatus = parsedLocal;
+                    } else {
+                        const timeOnly = (game.status || '').match(/(\d{1,2}:\d{2}\s*[AP]M)/i);
+                        displayStatus = timeOnly ? timeOnly[1].replace(/\s+/g,' ').trim() : game.status;
+                    }
                 }
                 
                 const leagueMeta = LEAGUE_META[game.league_key] || { label: game.league || 'SPORT', color: '#888' };
