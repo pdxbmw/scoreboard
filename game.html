@@ -87,14 +87,22 @@
         }
         .team-stats-section {
             display: flex; flex-direction: column; gap: 15px;
+            --team-color: #e8e8e8;
         }
         .stats-card {
             background: white; border-radius: 12px; padding: 20px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            border: 1px solid #f2f2f2;
+            border-bottom: 3px solid var(--team-color);
         }
         .stats-header {
             font-size: 1.1rem; font-weight: 600; margin-bottom: 15px;
             padding-bottom: 10px; border-bottom: 1px solid #e8e8e8;
+            display: flex; align-items: center; justify-content: space-between; gap: 8px;
+        }
+        .stats-header .stat-title { flex: 1; }
+        .stats-header img {
+            width: 20px; height: 20px; object-fit: contain; border-radius: 4px; background: #f4f4f4; padding: 2px;
         }
         .stat-row {
             display: flex; justify-content: space-between; padding: 8px 0;
@@ -183,38 +191,38 @@
         <div class="team-stats-container">
             <div class="team-stats-section">
                 <div class="stats-card">
-                    <div class="stats-header">Team Leaders</div>
+                    <div class="stats-header"><span class="stat-title">Team Leaders</span></div>
                     <div id="awayTeamLeaders">Loading...</div>
                 </div>
                 <div class="stats-card">
-                    <div class="stats-header">Game Statistics</div>
+                    <div class="stats-header"><span class="stat-title">Game Statistics</span></div>
                     <div id="awayGameStats">Loading...</div>
                 </div>
                 <div class="stats-card">
-                    <div class="stats-header">Advanced Stats</div>
+                    <div class="stats-header"><span class="stat-title">Advanced Stats</span></div>
                     <div id="awayAdvancedStats">Loading...</div>
                 </div>
                 <div class="stats-card">
-                    <div class="stats-header">Team Stats</div>
+                    <div class="stats-header"><span class="stat-title">Team Stats</span></div>
                     <div id="awayTeamStats">Loading...</div>
                 </div>
             </div>
             
             <div class="team-stats-section">
                 <div class="stats-card">
-                    <div class="stats-header">Team Leaders</div>
+                    <div class="stats-header"><span class="stat-title">Team Leaders</span></div>
                     <div id="homeTeamLeaders">Loading...</div>
                 </div>
                 <div class="stats-card">
-                    <div class="stats-header">Game Statistics</div>
+                    <div class="stats-header"><span class="stat-title">Game Statistics</span></div>
                     <div id="homeGameStats">Loading...</div>
                 </div>
                 <div class="stats-card">
-                    <div class="stats-header">Advanced Stats</div>
+                    <div class="stats-header"><span class="stat-title">Advanced Stats</span></div>
                     <div id="homeAdvancedStats">Loading...</div>
                 </div>
                 <div class="stats-card">
-                    <div class="stats-header">Team Stats</div>
+                    <div class="stats-header"><span class="stat-title">Team Stats</span></div>
                     <div id="homeTeamStats">Loading...</div>
                 </div>
             </div>
@@ -486,10 +494,30 @@ let lastScores = { home: 0, away: 0 };
             updateHeaderColors();
             console.log('🎨 updateHeaderColors() call completed!');
         }
+
+        function setHeaderLogo(containerId, logo, title) {
+            const statsContainer = document.getElementById(containerId);
+            if (!statsContainer) return;
+            const header = statsContainer.previousElementSibling;
+            if (header && header.classList.contains('stats-header')) {
+                header.innerHTML = `<span class="stat-title">${title}</span><img src="${logo}" alt="${title}">`;
+            }
+        }
+
+        function setCardColor(containerId, color) {
+            const statsContainer = document.getElementById(containerId);
+            if (!statsContainer) return;
+            const card = statsContainer.parentElement;
+            if (card && card.classList.contains('stats-card')) {
+                card.style.setProperty('--team-color', color || '#e8e8e8');
+            }
+        }
         
         function updateAwayTeamLeaders(game) {
             const leadersContainer = document.getElementById('awayTeamLeaders');
             if (!leadersContainer) return;
+            setHeaderLogo('awayTeamLeaders', game.away.logo, 'Team Leaders');
+            setCardColor('awayTeamLeaders', game.away.color);
             
             // Use real ESPN data from fullCompetition
             if (game.fullCompetition && game.fullCompetition.competitors) {
@@ -521,6 +549,8 @@ let lastScores = { home: 0, away: 0 };
         function updateHomeTeamLeaders(game) {
             const leadersContainer = document.getElementById('homeTeamLeaders');
             if (!leadersContainer) return;
+            setHeaderLogo('homeTeamLeaders', game.home.logo, 'Team Leaders');
+            setCardColor('homeTeamLeaders', game.home.color);
             
             // Use real ESPN data from fullCompetition
             if (game.fullCompetition && game.fullCompetition.competitors) {
@@ -552,6 +582,8 @@ let lastScores = { home: 0, away: 0 };
         function updateAwayGameStats(game) {
             const statsContainer = document.getElementById('awayGameStats');
             if (!statsContainer) return;
+            setHeaderLogo('awayGameStats', game.away.logo, 'Game Statistics');
+            setCardColor('awayGameStats', game.away.color);
             
             // Use real ESPN data from fullCompetition
             if (game.fullCompetition && game.fullCompetition.competitors) {
@@ -592,6 +624,8 @@ let lastScores = { home: 0, away: 0 };
         function updateHomeGameStats(game) {
             const statsContainer = document.getElementById('homeGameStats');
             if (!statsContainer) return;
+            setHeaderLogo('homeGameStats', game.home.logo, 'Game Statistics');
+            setCardColor('homeGameStats', game.home.color);
             
             // Use real ESPN data from fullCompetition
             if (game.fullCompetition && game.fullCompetition.competitors) {
@@ -632,6 +666,8 @@ let lastScores = { home: 0, away: 0 };
         function updateAwayAdvancedStats(game) {
             const statsContainer = document.getElementById('awayAdvancedStats');
             if (!statsContainer) return;
+            setHeaderLogo('awayAdvancedStats', game.away.logo, 'Advanced Stats');
+            setCardColor('awayAdvancedStats', game.away.color);
             
             // Use real ESPN data from fullCompetition
             if (game.fullCompetition && game.fullCompetition.competitors) {
@@ -673,6 +709,8 @@ let lastScores = { home: 0, away: 0 };
         function updateHomeAdvancedStats(game) {
             const statsContainer = document.getElementById('homeAdvancedStats');
             if (!statsContainer) return;
+            setHeaderLogo('homeAdvancedStats', game.home.logo, 'Advanced Stats');
+            setCardColor('homeAdvancedStats', game.home.color);
             
             // Use real ESPN data from fullCompetition
             if (game.fullCompetition && game.fullCompetition.competitors) {
@@ -714,6 +752,8 @@ let lastScores = { home: 0, away: 0 };
         function updateAwayTeamStats(game) {
             const statsContainer = document.getElementById('awayTeamStats');
             if (!statsContainer) return;
+            setHeaderLogo('awayTeamStats', game.away.logo, 'Team Stats');
+            setCardColor('awayTeamStats', game.away.color);
             
             // Use real ESPN data from fullCompetition
             if (game.fullCompetition && game.fullCompetition.competitors) {
@@ -763,6 +803,8 @@ let lastScores = { home: 0, away: 0 };
         function updateHomeTeamStats(game) {
             const statsContainer = document.getElementById('homeTeamStats');
             if (!statsContainer) return;
+            setHeaderLogo('homeTeamStats', game.home.logo, 'Team Stats');
+            setCardColor('homeTeamStats', game.home.color);
             
             // Use real ESPN data from fullCompetition
             if (game.fullCompetition && game.fullCompetition.competitors) {

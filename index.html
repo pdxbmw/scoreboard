@@ -67,12 +67,24 @@
                 allData = scrapedData;
                 dateKeys = Object.keys(allData).sort();
                 currentIndex = dateKeys.indexOf(todayStr);
-                if (currentIndex === -1) currentIndex = Math.floor(dateKeys.length / 2);
                 
-                // If today exists in scraped data, try to update it with ESPN data
-                if (dateKeys.includes(todayStr)) {
+                // If today missing, create it from ESPN
+                if (currentIndex === -1) {
+                    console.log('📅 Today missing in scraped data, fetching ESPN for today');
+                    const espnGames = await updateTodayWithESPN(todayStr);
+                    if (espnGames && espnGames.length >= 0) {
+                        allData[todayStr] = espnGames;
+                        dateKeys = Object.keys(allData).sort();
+                        currentIndex = dateKeys.indexOf(todayStr);
+                    }
+                    if (currentIndex === -1) currentIndex = Math.floor(dateKeys.length / 2);
+                } else {
+                    // Today exists: refresh with ESPN
                     console.log('📅 Today found in scraped data, updating with ESPN data');
-                    await updateTodayWithESPN(todayStr);
+                    const espnGames = await updateTodayWithESPN(todayStr);
+                    if (espnGames && espnGames.length >= 0) {
+                        allData[todayStr] = espnGames;
+                    }
                 }
                 
                 render();
@@ -86,7 +98,7 @@
         async function updateTodayWithESPN(todayStr) {
             try {
                 console.log('🔄 Fetching ESPN data for today');
-                const url = 'https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard';
+                const url = `https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?dates=${todayStr}`;
                 const res = await fetch(url);
                 const data = await res.json();
                 
@@ -127,10 +139,13 @@
                     // Update today's data with ESPN data
                     allData[todayStr] = espnGames;
                     console.log('✅ Updated today with ESPN data:', espnGames.length, 'games');
+                    return espnGames;
                 }
             } catch (e) {
                 console.log('⚠️ Could not fetch ESPN data, using scraped data:', e);
+                return null;
             }
+            return null;
         }
 
         function startAutoRefresh() {
