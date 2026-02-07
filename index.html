@@ -13,8 +13,13 @@
         .nav-btn:hover { background: #e0e0e0; }
         .current-date { font-size: 1.1rem; font-weight: 600; color: #333; }
         .filters { display: flex; gap: 8px; overflow-x: auto; padding: 15px 15px 5px 15px; -webkit-overflow-scrolling: touch; justify-content: center; flex-wrap: wrap; }
-        .filter-btn { background: white; border: 1px solid #ddd; border-radius: 20px; padding: 8px 14px; font-weight: 600; font-size: 0.9rem; cursor: pointer; white-space: nowrap; color: #555; }
-        .filter-btn.active { background: #333; color: white; border-color: #333; }
+        .filter-btn { background: #fff; border: 1px solid var(--dot); border-radius: 999px; padding: 8px 12px; font-weight: 600; font-size: 0.9rem; cursor: pointer; white-space: nowrap; color: var(--dot); display: inline-flex; align-items: center; gap: 6px; --dot:#555; }
+        .filter-btn .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--dot); display: inline-block; }
+        .filter-btn.active { background: var(--dot); color: #fff; border-color: var(--dot); }
+        .filter-btn.active .dot { background: #fff; }
+        .filter-btn.no-dot { gap: 0; --dot:#555; border-color: #ddd; color: #555; }
+        .filter-btn.no-dot .dot { display: none; }
+        .filter-btn.no-dot.active { background: #444; border-color: #444; color: #fff; }
         .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 15px; padding: 20px; max-width: 1400px; margin: 0 auto; }
         .card { background: var(--card-bg); border-radius: 24px; padding: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); display: flex; flex-direction: column; align-items: center; cursor: pointer; }
         .card.completed { opacity: 0.7; }
@@ -29,6 +34,8 @@
         .score { font-size: 1.8rem; font-weight: 600; color: #333; white-space: nowrap; }
         .score.at-symbol { font-size: 1.2rem; letter-spacing: 1px; color: #c2c2c2; }
         .status { font-size: 0.78rem; color: #666; background: #f0f0f0; padding: 4px 10px; border-radius: 10px; white-space: nowrap; display: inline-block; }
+        .league-pill { font-size: 0.68rem; font-weight: 600; color: #555; padding: 3px 8px; border-radius: 999px; display: inline-flex; align-items: center; gap: 6px; letter-spacing: 0.2px; background: #f9f9f9; border: 1px solid #e0e0e0; }
+        .league-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
         .live { background: #ff4444; color: white; animation: pulse 2s infinite; }
         .live-text { color: #ff4444; font-size: 0.85rem; font-weight: bold; }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
@@ -41,26 +48,49 @@
         <button class="nav-btn" onclick="changeDate(1)">→</button>
     </div>
     <div class="filters">
-        <button class="filter-btn active" onclick="filter('ALL')">🌍 All</button>
-        <button class="filter-btn" onclick="filter('nfl')">🏈 NFL</button>
-        <button class="filter-btn" onclick="filter('ncaa_fb')">🏈 NCAA FB</button>
-        <button class="filter-btn" onclick="filter('nba')">🏀 NBA</button>
-        <button class="filter-btn" onclick="filter('wnba')">🏀 WNBA</button>
-        <button class="filter-btn" onclick="filter('ncaa_mb')">🏀 NCAA Men</button>
-        <button class="filter-btn" onclick="filter('ncaa_wb')">🏀 NCAA Women</button>
+        <button class="filter-btn no-dot active" onclick="filter('ALL')">All</button>
+        <button class="filter-btn" style="--dot:#0b5f8a" onclick="filter('nfl')"><span class="dot"></span>NFL</button>
+        <button class="filter-btn" style="--dot:#8b3f0a" onclick="filter('ncaa_fb')"><span class="dot"></span>NCAA FB</button>
+        <button class="filter-btn" style="--dot:#1d428a" onclick="filter('nba')"><span class="dot"></span>NBA</button>
+        <button class="filter-btn" style="--dot:#e46b0c" onclick="filter('wnba')"><span class="dot"></span>WNBA</button>
+        <button class="filter-btn" style="--dot:#006847" onclick="filter('ncaa_mb')"><span class="dot"></span>NCAA Men</button>
+        <button class="filter-btn" style="--dot:#7d0068" onclick="filter('ncaa_wb')"><span class="dot"></span>NCAA Women</button>
     </div>
     <div class="grid" id="app">Loading...</div>
     <script>
         let allData = {}, dateKeys = [], currentIndex = 0, currentFilter = 'ALL', autoRefreshInterval;
+
+        const LEAGUE_META = {
+            nfl:  { label: 'NFL',  color: '#0b5f8a' },
+            ncaa_fb: { label: 'NCAA FB', color: '#8b3f0a' },
+            nba:  { label: 'NBA',  color: '#1d428a' },
+            wnba: { label: 'WNBA', color: '#e46b0c' },
+            ncaa_mb: { label: 'NCAA M', color: '#006847' },
+            ncaa_wb: { label: 'NCAA W', color: '#7d0068' },
+        };
+
+        function hexToRgba(hex, alpha = 0.12) {
+            if (!hex || typeof hex !== 'string') return `rgba(0,0,0,${alpha})`;
+            let h = hex.replace('#','');
+            if (h.length === 3) h = h.split('').map(c => c + c).join('');
+            const num = parseInt(h, 16);
+            const r = (num >> 16) & 255;
+            const g = (num >> 8) & 255;
+            const b = num & 255;
+            return `rgba(${r},${g},${b},${alpha})`;
+        }
         
         async function init() {
             try {
                 // Check if today and load ESPN data, otherwise load scraped data
+                const urlParams = new URLSearchParams(window.location.search);
+                const paramDate = urlParams.get('d');
                 const today = new Date();
                 const todayStr = today.getFullYear().toString() + 
                     (today.getMonth() + 1).toString().padStart(2, '0') + 
                     today.getDate().toString().padStart(2, '0');
-                console.log('📅 Today is:', todayStr);
+                const initialDateStr = paramDate || todayStr;
+                console.log('📅 Today is:', todayStr, 'initial:', initialDateStr);
                 
                 // Try to load scraped data first to get date structure
                 const res = await fetch('data/scores.json?t=' + Date.now());
@@ -77,11 +107,11 @@
                     });
                 });
                 dateKeys = Object.keys(allData).sort();
-                currentIndex = dateKeys.indexOf(todayStr);
+                currentIndex = dateKeys.indexOf(initialDateStr);
                 
                 // If today missing, create it from ESPN
                 if (currentIndex === -1) {
-                    console.log('📅 Today missing in scraped data, fetching ESPN for today');
+                    console.log('📅 Initial date missing in scraped data, fetching ESPN for today');
                     const espnGames = await updateTodayWithESPN(todayStr);
                     if (espnGames && espnGames.length >= 0) {
                         allData[todayStr] = espnGames;
@@ -90,8 +120,8 @@
                     }
                     if (currentIndex === -1) currentIndex = Math.floor(dateKeys.length / 2);
                 } else {
-                    // Today exists: refresh with ESPN
-                    console.log('📅 Today found in scraped data, updating with ESPN data');
+                    // Date exists: refresh today with ESPN if available
+                    console.log('📅 Initial date found in scraped data, updating today with ESPN data');
                     const espnGames = await updateTodayWithESPN(todayStr);
                     if (espnGames && espnGames.length >= 0) {
                         allData[todayStr] = espnGames;
@@ -235,6 +265,8 @@
                     displayStatus = game.start_local || game.status;
                 }
                 
+                const leagueMeta = LEAGUE_META[game.league_key] || { label: game.league || 'SPORT', color: '#888' };
+                const badgeBg = hexToRgba(leagueMeta.color, 0.12);
                 div.innerHTML = `
                     <div class="matchup">
                         <div class="team">
@@ -243,6 +275,7 @@
                             <div class="record">${game.away.record}</div>
                         </div>
                         <div class="score-board">
+                            <span class="league-pill" style="border-color:${leagueMeta.color}; background:${badgeBg}"><span class="league-dot" style="background:${leagueMeta.color}"></span>${leagueMeta.label}</span>
                             <span class="${game.away.score === '0' && game.home.score === '0' ? 'score at-symbol' : 'score'}">${game.away.score === '0' && game.home.score === '0' ? '@' : `${game.away.score}-${game.home.score}`}</span>
                             <div class="status">${displayStatus}</div>
                         </div>
@@ -268,6 +301,10 @@
             const newIndex = currentIndex + delta; 
             if (newIndex >= 0 && newIndex < dateKeys.length) { 
                 currentIndex = newIndex; 
+                const dateKey = dateKeys[currentIndex];
+                const url = new URL(window.location.href);
+                url.searchParams.set('d', dateKey);
+                window.history.replaceState({}, '', url.toString());
                 render(); 
             }
         }
