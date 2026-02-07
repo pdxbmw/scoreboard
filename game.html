@@ -15,7 +15,11 @@
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
         }
         .header-content {
-            max-width: 1200px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center;
+            max-width: 1200px; margin: 0 auto; display: flex; 
+            justify-content: space-between; align-items: center; gap: 20px;
+        }
+        .header-center {
+            flex: 1; text-align: center;
         }
         .back-btn { 
             background: rgba(255,255,255,0.2); color: white; border: none; 
@@ -77,9 +81,12 @@
             font-size: 1.5rem; font-weight: bold; color: #666;
         }
         
-        /* Stats Section */
-        .stats-grid {
-            display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;
+        /* Team Stats Side by Side */
+        .team-stats-container {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin: 20px 0;
+        }
+        .team-stats-section {
+            display: flex; flex-direction: column; gap: 15px;
         }
         .stats-card {
             background: white; border-radius: 12px; padding: 20px;
@@ -129,8 +136,10 @@
     <div class="game-header">
         <div class="header-content">
             <a href="index.html" class="back-btn">← Back</a>
-            <div class="game-title" id="gameTitle">Game Details</div>
-            <div class="live-badge" id="liveIndicator" style="display: none;">LIVE</div>
+            <div class="header-center">
+                <div class="game-title" id="gameTitle">Game Details</div>
+                <div class="live-badge" id="liveIndicator" style="display: none;">LIVE</div>
+            </div>
         </div>
     </div>
 
@@ -168,22 +177,45 @@
             </div>
         </div>
         
-        <!-- Stats Grid -->
-        <div class="stats-grid">
-            <div class="stats-card">
-                <div class="stats-header">Team Leaders</div>
-                <div id="teamLeaders">Loading...</div>
+        <!-- Team Stats Side by Side -->
+        <div class="team-stats-container">
+            <div class="team-stats-section">
+                <div class="stats-card">
+                    <div class="stats-header">Team Leaders</div>
+                    <div id="awayTeamLeaders">Loading...</div>
+                </div>
+                <div class="stats-card">
+                    <div class="stats-header">Game Statistics</div>
+                    <div id="awayGameStats">Loading...</div>
+                </div>
+                <div class="stats-card">
+                    <div class="stats-header">Advanced Stats</div>
+                    <div id="awayAdvancedStats">Loading...</div>
+                </div>
+                <div class="stats-card">
+                    <div class="stats-header">Team Stats</div>
+                    <div id="awayTeamStats">Loading...</div>
+                </div>
             </div>
-            <div class="stats-card">
-                <div class="stats-header">Game Statistics</div>
-                <div id="gameStats">Loading...</div>
+            
+            <div class="team-stats-section">
+                <div class="stats-card">
+                    <div class="stats-header">Team Leaders</div>
+                    <div id="homeTeamLeaders">Loading...</div>
+                </div>
+                <div class="stats-card">
+                    <div class="stats-header">Game Statistics</div>
+                    <div id="homeGameStats">Loading...</div>
+                </div>
+                <div class="stats-card">
+                    <div class="stats-header">Advanced Stats</div>
+                    <div id="homeAdvancedStats">Loading...</div>
+                </div>
+                <div class="stats-card">
+                    <div class="stats-header">Team Stats</div>
+                    <div id="homeTeamStats">Loading...</div>
+                </div>
             </div>
-        </div>
-        
-        <!-- Play by Play -->
-        <div class="play-by-play">
-            <div class="stats-header">Play by Play</div>
-            <div id="playByPlay">Loading...</div>
         </div>
     </div>
 
@@ -238,21 +270,20 @@ let lastScores = { home: 0, away: 0 };
                                 date_label: new Date(event.date).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' }),
                                 status: status,
                                 completed: comp.status?.type?.completed || false,
-                                home: {
-                                    id: home.team.id,
-                                    name: home.team.shortDisplayName,
-                                    score: home.score || '0',
-                                    logo: home.team.logos?.[0]?.href || home.team.logo || '',
-                                    color: HOME_COLOR || "#" + (home.team.color || '333333'),
-                                    record: home.records?.[0]?.summary || '0-0'
-                                },
+                                fullCompetition: comp,
                                 away: {
-                                    id: away.team.id,
-                                    name: away.team.shortDisplayName,
-                                    score: away.score || '0',
+                                    name: away.team.displayName,
                                     logo: away.team.logos?.[0]?.href || away.team.logo || '',
                                     color: AWAY_COLOR || "#" + (away.team.color || '333333'),
-                                    record: away.records?.[0]?.summary || '0-0'
+                                    record: away.records?.[0]?.summary || '0-0',
+                                    score: away.score || '0'
+                                },
+                                home: {
+                                    name: home.team.displayName,
+                                    logo: home.team.logos?.[0]?.href || home.team.logo || '',
+                                    color: HOME_COLOR || "#" + (home.team.color || '333333'),
+                                    record: home.records?.[0]?.summary || '0-0',
+                                    score: home.score || '0'
                                 }
                             };
                             console.log('🔴 Detailed game data fetched from ESPN API');
@@ -345,37 +376,30 @@ let lastScores = { home: 0, away: 0 };
             const gameTitle = document.getElementById('gameTitle');
             if (gameTitle) gameTitle.innerText = `${game.away.name} @ ${game.home.name}`;
             
-            // Update game info
-            const gameLeague = document.getElementById('gameLeague');
-            const gameDate = document.getElementById('gameDate');
-            if (gameLeague) gameLeague.innerText = game.league;
-            if (gameDate) gameDate.innerText = game.date_label;
-            
-            // Update teams
+            // Update team information
             const awayLogo = document.getElementById('awayLogo');
+            const homeLogo = document.getElementById('homeLogo');
             const awayName = document.getElementById('awayName');
+            const homeName = document.getElementById('homeName');
             const awayRecord = document.getElementById('awayRecord');
+            const homeRecord = document.getElementById('homeRecord');
             const awayScore = document.getElementById('awayScore');
+            const homeScore = document.getElementById('homeScore');
             
             if (awayLogo) {
                 awayLogo.src = game.away.logo;
                 awayLogo.setAttribute('data-team-id', game.away.id);
                 awayLogo.setAttribute('data-team-color', AWAY_COLOR);
-                console.log('🔵 Away team:', game.away.name, 'Color:', AWAY_COLOR);
+                console.log('🔴 Away team:', game.away.name, 'Color:', AWAY_COLOR);
             }
             if (awayName) awayName.innerText = game.away.name;
             if (awayRecord) awayRecord.innerText = game.away.record;
             if (awayScore) {
                 awayScore.innerText = game.away.score;
-                console.log('🔵 Set away score to:', game.away.score);
+                console.log('🔴 Set away score to:', game.away.score);
             } else {
                 console.error('❌ Away score element not found!');
             }
-            
-            const homeLogo = document.getElementById('homeLogo');
-            const homeName = document.getElementById('homeName');
-            const homeRecord = document.getElementById('homeRecord');
-            const homeScore = document.getElementById('homeScore');
             
             if (homeLogo) {
                 homeLogo.src = game.home.logo;
@@ -441,10 +465,15 @@ let lastScores = { home: 0, away: 0 };
                 console.log('Game is scheduled');
             }
             
-            // Update rich data sections
-            updateTeamLeaders(game);
-            updateGameStats(game);
-            updatePlayByPlay(game);
+            // Update all team-specific stats sections
+            updateAwayTeamLeaders(game);
+            updateHomeTeamLeaders(game);
+            updateAwayGameStats(game);
+            updateHomeGameStats(game);
+            updateAwayAdvancedStats(game);
+            updateHomeAdvancedStats(game);
+            updateAwayTeamStats(game);
+            updateHomeTeamStats(game);
             
             // Update header colors with team colors
             console.log('🎨 About to call updateHeaderColors()...');
@@ -452,7 +481,329 @@ let lastScores = { home: 0, away: 0 };
             console.log('🎨 updateHeaderColors() call completed!');
         }
         
-        function updateTeamLeaders(game) {
+        function updateAwayTeamLeaders(game) {
+            const leadersContainer = document.getElementById('awayTeamLeaders');
+            if (!leadersContainer) return;
+            
+            // Use real ESPN data from fullCompetition
+            if (game.fullCompetition && game.fullCompetition.competitors) {
+                const awayCompetitor = game.fullCompetition.competitors.find(c => c.homeAway === 'away');
+                
+                if (awayCompetitor && awayCompetitor.leaders) {
+                    let html = '';
+                    awayCompetitor.leaders.forEach(leaderCategory => {
+                        if (leaderCategory.leaders && leaderCategory.leaders.length > 0) {
+                            const leader = leaderCategory.leaders[0];
+                            html += `
+                                <div class="stat-row">
+                                    <span class="stat-label">${leader.athlete?.displayName || 'Unknown'}</span>
+                                    <span class="stat-value">${leader.displayValue} ${leaderCategory.displayName}</span>
+                                </div>
+                            `;
+                        }
+                    });
+                    
+                    leadersContainer.innerHTML = html || '<div class="stat-row"><span class="stat-label">Leaders not available</span></div>';
+                } else {
+                    leadersContainer.innerHTML = '<div class="stat-row"><span class="stat-label">Leaders not available</span></div>';
+                }
+            } else {
+                leadersContainer.innerHTML = '<div class="stat-row"><span class="stat-label">Leaders not available</span></div>';
+            }
+        }
+        
+        function updateHomeTeamLeaders(game) {
+            const leadersContainer = document.getElementById('homeTeamLeaders');
+            if (!leadersContainer) return;
+            
+            // Use real ESPN data from fullCompetition
+            if (game.fullCompetition && game.fullCompetition.competitors) {
+                const homeCompetitor = game.fullCompetition.competitors.find(c => c.homeAway === 'home');
+                
+                if (homeCompetitor && homeCompetitor.leaders) {
+                    let html = '';
+                    homeCompetitor.leaders.forEach(leaderCategory => {
+                        if (leaderCategory.leaders && leaderCategory.leaders.length > 0) {
+                            const leader = leaderCategory.leaders[0];
+                            html += `
+                                <div class="stat-row">
+                                    <span class="stat-label">${leader.athlete?.displayName || 'Unknown'}</span>
+                                    <span class="stat-value">${leader.displayValue} ${leaderCategory.displayName}</span>
+                                </div>
+                            `;
+                        }
+                    });
+                    
+                    leadersContainer.innerHTML = html || '<div class="stat-row"><span class="stat-label">Leaders not available</span></div>';
+                } else {
+                    leadersContainer.innerHTML = '<div class="stat-row"><span class="stat-label">Leaders not available</span></div>';
+                }
+            } else {
+                leadersContainer.innerHTML = '<div class="stat-row"><span class="stat-label">Leaders not available</span></div>';
+            }
+        }
+        
+        function updateAwayGameStats(game) {
+            const statsContainer = document.getElementById('awayGameStats');
+            if (!statsContainer) return;
+            
+            // Use real ESPN data from fullCompetition
+            if (game.fullCompetition && game.fullCompetition.competitors) {
+                const awayCompetitor = game.fullCompetition.competitors.find(c => c.homeAway === 'away');
+                
+                if (awayCompetitor && awayCompetitor.statistics) {
+                    let html = '';
+                    const keyStats = ['fieldGoalPct', 'threePointPct', 'freeThrowPct', 'rebounds', 'assists'];
+                    
+                    keyStats.forEach(statName => {
+                        const stat = awayCompetitor.statistics.find(s => s.name === statName);
+                        if (stat) {
+                            let label = statName;
+                            if (statName === 'fieldGoalPct') label = 'Field Goal %';
+                            else if (statName === 'threePointPct') label = '3-Point %';
+                            else if (statName === 'freeThrowPct') label = 'Free Throw %';
+                            else if (statName === 'rebounds') label = 'Total Rebounds';
+                            else if (statName === 'assists') label = 'Assists';
+                            
+                            html += `
+                                <div class="stat-row">
+                                    <span class="stat-label">${label}</span>
+                                    <span class="stat-value">${stat.displayValue}</span>
+                                </div>
+                            `;
+                        }
+                    });
+                    
+                    statsContainer.innerHTML = html || '<div class="stat-row"><span class="stat-label">Stats not available</span></div>';
+                } else {
+                    statsContainer.innerHTML = '<div class="stat-row"><span class="stat-label">Stats not available</span></div>';
+                }
+            } else {
+                statsContainer.innerHTML = '<div class="stat-row"><span class="stat-label">Stats not available</span></div>';
+            }
+        }
+        
+        function updateHomeGameStats(game) {
+            const statsContainer = document.getElementById('homeGameStats');
+            if (!statsContainer) return;
+            
+            // Use real ESPN data from fullCompetition
+            if (game.fullCompetition && game.fullCompetition.competitors) {
+                const homeCompetitor = game.fullCompetition.competitors.find(c => c.homeAway === 'home');
+                
+                if (homeCompetitor && homeCompetitor.statistics) {
+                    let html = '';
+                    const keyStats = ['fieldGoalPct', 'threePointPct', 'freeThrowPct', 'rebounds', 'assists'];
+                    
+                    keyStats.forEach(statName => {
+                        const stat = homeCompetitor.statistics.find(s => s.name === statName);
+                        if (stat) {
+                            let label = statName;
+                            if (statName === 'fieldGoalPct') label = 'Field Goal %';
+                            else if (statName === 'threePointPct') label = '3-Point %';
+                            else if (statName === 'freeThrowPct') label = 'Free Throw %';
+                            else if (statName === 'rebounds') label = 'Total Rebounds';
+                            else if (statName === 'assists') label = 'Assists';
+                            
+                            html += `
+                                <div class="stat-row">
+                                    <span class="stat-label">${label}</span>
+                                    <span class="stat-value">${stat.displayValue}</span>
+                                </div>
+                            `;
+                        }
+                    });
+                    
+                    statsContainer.innerHTML = html || '<div class="stat-row"><span class="stat-label">Stats not available</span></div>';
+                } else {
+                    statsContainer.innerHTML = '<div class="stat-row"><span class="stat-label">Stats not available</span></div>';
+                }
+            } else {
+                statsContainer.innerHTML = '<div class="stat-row"><span class="stat-label">Stats not available</span></div>';
+            }
+        }
+        
+        function updateAwayAdvancedStats(game) {
+            const statsContainer = document.getElementById('awayAdvancedStats');
+            if (!statsContainer) return;
+            
+            // Use real ESPN data from fullCompetition
+            if (game.fullCompetition && game.fullCompetition.competitors) {
+                const awayCompetitor = game.fullCompetition.competitors.find(c => c.homeAway === 'away');
+                
+                if (awayCompetitor && awayCompetitor.statistics) {
+                    let html = '';
+                    const advancedStats = ['fieldGoalsAttempted', 'fieldGoalsMade', 'threePointFieldGoalsAttempted', 'threePointFieldGoalsMade', 'freeThrowsAttempted', 'freeThrowsMade'];
+                    
+                    advancedStats.forEach(statName => {
+                        const stat = awayCompetitor.statistics.find(s => s.name === statName);
+                        if (stat) {
+                            let label = statName;
+                            if (statName === 'fieldGoalsAttempted') label = 'FG Attempts';
+                            else if (statName === 'fieldGoalsMade') label = 'FG Made';
+                            else if (statName === 'threePointFieldGoalsAttempted') label = '3PT Attempts';
+                            else if (statName === 'threePointFieldGoalsMade') label = '3PT Made';
+                            else if (statName === 'freeThrowsAttempted') label = 'FT Attempts';
+                            else if (statName === 'freeThrowsMade') label = 'FT Made';
+                            
+                            html += `
+                                <div class="stat-row">
+                                    <span class="stat-label">${label}</span>
+                                    <span class="stat-value">${stat.displayValue}</span>
+                                </div>
+                            `;
+                        }
+                    });
+                    
+                    statsContainer.innerHTML = html || '<div class="stat-row"><span class="stat-label">Advanced stats not available</span></div>';
+                } else {
+                    statsContainer.innerHTML = '<div class="stat-row"><span class="stat-label">Advanced stats not available</span></div>';
+                }
+            } else {
+                statsContainer.innerHTML = '<div class="stat-row"><span class="stat-label">Advanced stats not available</span></div>';
+            }
+        }
+        
+        function updateHomeAdvancedStats(game) {
+            const statsContainer = document.getElementById('homeAdvancedStats');
+            if (!statsContainer) return;
+            
+            // Use real ESPN data from fullCompetition
+            if (game.fullCompetition && game.fullCompetition.competitors) {
+                const homeCompetitor = game.fullCompetition.competitors.find(c => c.homeAway === 'home');
+                
+                if (homeCompetitor && homeCompetitor.statistics) {
+                    let html = '';
+                    const advancedStats = ['fieldGoalsAttempted', 'fieldGoalsMade', 'threePointFieldGoalsAttempted', 'threePointFieldGoalsMade', 'freeThrowsAttempted', 'freeThrowsMade'];
+                    
+                    advancedStats.forEach(statName => {
+                        const stat = homeCompetitor.statistics.find(s => s.name === statName);
+                        if (stat) {
+                            let label = statName;
+                            if (statName === 'fieldGoalsAttempted') label = 'FG Attempts';
+                            else if (statName === 'fieldGoalsMade') label = 'FG Made';
+                            else if (statName === 'threePointFieldGoalsAttempted') label = '3PT Attempts';
+                            else if (statName === 'threePointFieldGoalsMade') label = '3PT Made';
+                            else if (statName === 'freeThrowsAttempted') label = 'FT Attempts';
+                            else if (statName === 'freeThrowsMade') label = 'FT Made';
+                            
+                            html += `
+                                <div class="stat-row">
+                                    <span class="stat-label">${label}</span>
+                                    <span class="stat-value">${stat.displayValue}</span>
+                                </div>
+                            `;
+                        }
+                    });
+                    
+                    statsContainer.innerHTML = html || '<div class="stat-row"><span class="stat-label">Advanced stats not available</span></div>';
+                } else {
+                    statsContainer.innerHTML = '<div class="stat-row"><span class="stat-label">Advanced stats not available</span></div>';
+                }
+            } else {
+                statsContainer.innerHTML = '<div class="stat-row"><span class="stat-label">Advanced stats not available</span></div>';
+            }
+        }
+        
+        function updateAwayTeamStats(game) {
+            const statsContainer = document.getElementById('awayTeamStats');
+            if (!statsContainer) return;
+            
+            // Use real ESPN data from fullCompetition
+            if (game.fullCompetition && game.fullCompetition.competitors) {
+                const awayCompetitor = game.fullCompetition.competitors.find(c => c.homeAway === 'away');
+                
+                if (awayCompetitor) {
+                    let html = '';
+                    
+                    // Add team record
+                    if (awayCompetitor.records && awayCompetitor.records.length > 0) {
+                        html += `
+                            <div class="stat-row">
+                                <span class="stat-label">Record</span>
+                                <span class="stat-value">${awayCompetitor.records[0].summary}</span>
+                            </div>
+                        `;
+                    }
+                    
+                    // Add quarter scores
+                    if (awayCompetitor.linescores && awayCompetitor.linescores.length > 0) {
+                        const quarterScores = awayCompetitor.linescores.map(s => s.displayValue).join(', ');
+                        html += `
+                            <div class="stat-row">
+                                <span class="stat-label">Quarter Scores</span>
+                                <span class="stat-value">${quarterScores}</span>
+                            </div>
+                        `;
+                    }
+                    
+                    // Add winner indicator
+                    html += `
+                        <div class="stat-row">
+                            <span class="stat-label">Winner</span>
+                            <span class="stat-value">${awayCompetitor.winner ? '✓' : ''}</span>
+                        </div>
+                    `;
+                    
+                    statsContainer.innerHTML = html || '<div class="stat-row"><span class="stat-label">Team stats not available</span></div>';
+                } else {
+                    statsContainer.innerHTML = '<div class="stat-row"><span class="stat-label">Team stats not available</span></div>';
+                }
+            } else {
+                statsContainer.innerHTML = '<div class="stat-row"><span class="stat-label">Team stats not available</span></div>';
+            }
+        }
+        
+        function updateHomeTeamStats(game) {
+            const statsContainer = document.getElementById('homeTeamStats');
+            if (!statsContainer) return;
+            
+            // Use real ESPN data from fullCompetition
+            if (game.fullCompetition && game.fullCompetition.competitors) {
+                const homeCompetitor = game.fullCompetition.competitors.find(c => c.homeAway === 'home');
+                
+                if (homeCompetitor) {
+                    let html = '';
+                    
+                    // Add team record
+                    if (homeCompetitor.records && homeCompetitor.records.length > 0) {
+                        html += `
+                            <div class="stat-row">
+                                <span class="stat-label">Record</span>
+                                <span class="stat-value">${homeCompetitor.records[0].summary}</span>
+                            </div>
+                        `;
+                    }
+                    
+                    // Add quarter scores
+                    if (homeCompetitor.linescores && homeCompetitor.linescores.length > 0) {
+                        const quarterScores = homeCompetitor.linescores.map(s => s.displayValue).join(', ');
+                        html += `
+                            <div class="stat-row">
+                                <span class="stat-label">Quarter Scores</span>
+                                <span class="stat-value">${quarterScores}</span>
+                            </div>
+                        `;
+                    }
+                    
+                    // Add winner indicator
+                    html += `
+                        <div class="stat-row">
+                            <span class="stat-label">Winner</span>
+                            <span class="stat-value">${homeCompetitor.winner ? '✓' : ''}</span>
+                        </div>
+                    `;
+                    
+                    statsContainer.innerHTML = html || '<div class="stat-row"><span class="stat-label">Team stats not available</span></div>';
+                } else {
+                    statsContainer.innerHTML = '<div class="stat-row"><span class="stat-label">Team stats not available</span></div>';
+                }
+            } else {
+                statsContainer.innerHTML = '<div class="stat-row"><span class="stat-label">Team stats not available</span></div>';
+            }
+        }
+
+        function startLiveUpdates() {
             const leadersContainer = document.getElementById('teamLeaders');
             if (!leadersContainer) return;
             
