@@ -25,9 +25,10 @@
         .team img { width: 55px; height: 55px; object-fit: contain; }
         .team-name { font-size: 0.85rem; margin-top: 5px; text-align: center; }
         .record { font-size: 0.75rem; color: #888; }
-        .score-board { text-align: center; flex: 0 0 85px; cursor: pointer; }
+        .score-board { text-align: center; flex: 0 0 85px; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 6px; }
         .score { font-size: 1.8rem; font-weight: 600; color: #333; white-space: nowrap; }
-        .status { font-size: 0.75rem; color: #999; background: #eee; padding: 2px 8px; border-radius: 8px; white-space: nowrap; }
+        .score.at-symbol { font-size: 1.2rem; letter-spacing: 1px; color: #c2c2c2; }
+        .status { font-size: 0.78rem; color: #666; background: #f0f0f0; padding: 4px 10px; border-radius: 10px; white-space: nowrap; display: inline-block; }
         .live { background: #ff4444; color: white; animation: pulse 2s infinite; }
         .live-text { color: #ff4444; font-size: 0.85rem; font-weight: bold; }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
@@ -64,7 +65,17 @@
                 // Try to load scraped data first to get date structure
                 const res = await fetch('data/scores.json?t=' + Date.now());
                 const scrapedData = await res.json();
+                // Ensure scraped data has start_local for scheduled games
                 allData = scrapedData;
+                Object.values(allData).forEach(dayGames => {
+                    dayGames.forEach(g => {
+                        if (!g.start_local && g.date) {
+                            try {
+                                g.start_local = new Date(g.date).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+                            } catch (e) {}
+                        }
+                    });
+                });
                 dateKeys = Object.keys(allData).sort();
                 currentIndex = dateKeys.indexOf(todayStr);
                 
@@ -109,6 +120,7 @@
                         const status = comp.status?.type?.shortDetail || '';
                         const home = comp.competitors[0];
                         const away = comp.competitors[1];
+                        const startLocal = new Date(event.date).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
                         
                         const gameData = {
                             id: event.id,
@@ -116,6 +128,7 @@
                             league_key: "nba",
                             status: status,
                             completed: comp.status?.type?.completed || false,
+                            start_local: startLocal,
                             home: {
                                 id: home.team.id,
                                 name: home.team.shortDisplayName,
@@ -213,12 +226,13 @@
                 
                 let displayStatus = game.status;
                 if (isLive && /\d+:\d+\s*-\s*\d+(st|nd|rd|th)/.test(game.status)) {
-                    // Extract time and quarter, format as "Q2\n7:31" (quarter above time)
                     const timeMatch = game.status.match(/(\d+:\d+)/);
                     const quarterNum = game.status.match(/(\d+)(?:st|nd|rd|th)/);
                     if (timeMatch && quarterNum) {
                         displayStatus = `Q${quarterNum[1]}<br><span class="live-text">${timeMatch[1]}</span>`;
                     }
+                } else if (!game.completed) {
+                    displayStatus = game.start_local || game.status;
                 }
                 
                 div.innerHTML = `
@@ -229,7 +243,7 @@
                             <div class="record">${game.away.record}</div>
                         </div>
                         <div class="score-board">
-                            <span class="score">${game.away.score === '0' && game.home.score === '0' ? '@' : `${game.away.score}-${game.home.score}`}</span>
+                            <span class="${game.away.score === '0' && game.home.score === '0' ? 'score at-symbol' : 'score'}">${game.away.score === '0' && game.home.score === '0' ? '@' : `${game.away.score}-${game.home.score}`}</span>
                             <div class="status">${displayStatus}</div>
                         </div>
                         <div class="team">
