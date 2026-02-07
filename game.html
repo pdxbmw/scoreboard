@@ -9,9 +9,12 @@
         body { font-family: 'Fredoka', sans-serif; background: #f4f7f6; margin: 0; padding: 0; }
         
         .header {
-            background: var(--home-color, #333); color: white; padding: 30px 20px;
+            background: var(--team-color, #333); color: white; padding: 30px 20px;
             text-align: center; box-shadow: 0 4px 10px rgba(0,0,0,0.2); position: sticky; top: 0; z-index: 100;
+            display: flex; align-items: center; justify-content: space-between;
         }
+        .header h1 { margin: 10px 0 5px 0; font-size: 2.5rem; }
+        .header-content { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; position: relative; margin-left: 100px; }
         .back-btn { 
             position: absolute; top: 20px; left: 20px; background: rgba(255,255,255,0.2); 
             color: white; border: none; padding: 8px 15px; border-radius: 20px; font-weight: bold; cursor: pointer;
@@ -24,17 +27,28 @@
             text-align: center; margin-bottom: 20px;
         }
         .teams { display: flex; justify-content: space-around; align-items: center; margin: 20px 0; }
-        .team { display: flex; flex-direction: column; align-items: center; }
+        .team { display: flex; flex-direction: column; align-items: center; cursor: pointer; }
         .team img { width: 80px; height: 80px; object-fit: contain; margin-bottom: 10px; }
         .team-name { font-size: 1.2rem; font-weight: 600; margin-bottom: 5px; }
         .team-record { font-size: 0.9rem; color: #888; margin-bottom: 10px; }
         .score { font-size: 3rem; font-weight: bold; color: #333; }
+        .live-text { color: #ff4444; font-weight: bold; }
+        .live-text.white { color: white !important; }
         .game-status { 
             background: #f0f0f0; padding: 10px 20px; border-radius: 20px; 
             font-weight: 600; margin: 20px 0; display: inline-block;
         }
-        .live { background: #ff4444; color: white; animation: pulse 2s infinite; }
-        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
+        .live { 
+            background: #ff4444; color: white; animation: pulse 2s infinite; 
+            font-size: 1.2rem; padding: 15px 30px; box-shadow: 0 4px 15px rgba(255, 68, 68, 0.3);
+        }
+        @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.8; transform: scale(1.05); } }
+        .live-indicator {
+            background: #ff4444; color: white; padding: 5px 15px; 
+            border-radius: 20px; font-weight: bold; font-size: 0.8rem;
+            display: inline-block; margin-top: 10px;
+        }
+        .live-text { color: #ff4444; font-weight: bold; }
         
         .game-info { background: white; border-radius: 15px; padding: 20px; margin-bottom: 15px; }
         .game-info h3 { margin-top: 0; color: #333; }
@@ -44,13 +58,15 @@
 
     <div class="header" id="header">
         <a href="index.html" class="back-btn">← Back</a>
-        <h1 id="gameTitle">Live Game</h1>
+        <div class="header-content">
+            <h1 id="gameTitle">Game Details</h1>
+        </div>
     </div>
 
     <div class="game-container">
         <div class="scoreboard">
             <div class="teams">
-                <div class="team" id="awayTeam">
+                <div class="team" id="awayTeam" onclick="goToTeam('away')">
                     <img id="awayLogo" src="" alt="Away Team">
                     <div class="team-name" id="awayName">Away Team</div>
                     <div class="team-record" id="awayRecord">0-0</div>
@@ -61,7 +77,7 @@
                     <span id="statusText">Loading...</span>
                 </div>
                 
-                <div class="team" id="homeTeam">
+                <div class="team" id="homeTeam" onclick="goToTeam('home')">
                     <img id="homeLogo" src="" alt="Home Team">
                     <div class="team-name" id="homeName">Home Team</div>
                     <div class="team-record" id="homeRecord">0-0</div>
@@ -84,6 +100,7 @@
         const AWAY_COLOR = decodeURIComponent(params.get('awayColor') || '#333333');
 
         let updateInterval;
+let lastScores = { home: 0, away: 0 };
 
         async function loadGameData() {
             if (!GAME_ID) {
@@ -92,25 +109,105 @@
             }
 
             try {
-                // Load from main scores data first
-                const res = await fetch('data/scores.json?t=' + Date.now());
-                const data = await res.json();
-                
-                // Find the game in all dates
+                console.log('🔄 Fetching live game data from ESPN API');
                 let gameData = null;
-                for (const dateKey in data) {
-                    const game = data[dateKey].find(g => g.id === GAME_ID);
-                    if (game) {
-                        gameData = game;
+                
+                // Fetch live data from ESPN API
+                const liveUrl = `https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard`;
+                console.log('Fetching from URL:', liveUrl);
+                const liveRes = await fetch(liveUrl);
+                const liveData = await liveRes.json();
+                
+                console.log('Live data events count:', liveData.events?.length || 0);
+                console.log('Looking for game ID:', GAME_ID);
+                
+                // Find our game in live data
+                for (const event of liveData.events) {
+                    console.log('Checking event ID:', event.id);
+                    console.log('Event season info:', event.season);
+                    console.log('Event name:', event.name);
+                    console.log('Event shortName:', event.shortName);
+                    console.log('Looking for league info in event object...');
+                    
+                    // Try different paths to find league info
+                    const leaguePaths = [
+                        event.leagues?.[0]?.name,
+                        event.season?.leagues?.[0]?.name,
+                        event.season?.name,
+                        event.league?.name,
+                        'NBA' // fallback
+                    ];
+                    
+                    let leagueName = 'Unknown League';
+                    for (const path of leaguePaths) {
+                        if (path && path !== 'NBA') {
+                            leagueName = path;
+                            console.log(`Found league at path:`, path);
+                            break;
+                        }
+                    }
+                    
+                    if (event.id === GAME_ID) {
+                        const comp = event.competitions[0];
+                        const home = comp.competitors[0];
+                        const away = comp.competitors[1];
+                        
+                        console.log('Found game - League from ESPN:', leagueName);
+                        
+                        gameData = {
+                            id: event.id,
+                            league: 'National Basketball Association',
+                            league_key: 'nba',
+                            sport: 'basketball',
+                            league_slug: 'nba',
+                            date_label: new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' }),
+                            status: comp.status.type.shortDetail,
+                            completed: comp.status.type.completed,
+                            home: {
+                                id: home.team.id,
+                                name: home.team.shortDisplayName,
+                                score: home.score,
+                                logo: home.team.logos?.[0]?.href || home.team.logo || '',
+                                color: "#" + (home.team.color || '333333'),
+                                record: home.records?.[0]?.summary || '0-0'
+                            },
+                            away: {
+                                id: away.team.id,
+                                name: away.team.shortDisplayName,
+                                score: away.score,
+                                logo: away.team.logos?.[0]?.href || away.team.logo || '',
+                                color: "#" + (away.team.color || '333333'),
+                                record: away.records?.[0]?.summary || '0-0'
+                            }
+                        };
+                        console.log('🔴 Live data fetched from ESPN API');
                         break;
                     }
                 }
 
                 if (gameData) {
+                    // Check if scores changed
+                    const currentHomeScore = parseInt(gameData.home.score);
+                    const currentAwayScore = parseInt(gameData.away.score);
+                    
+                    if (lastScores.home !== currentHomeScore || lastScores.away !== currentAwayScore) {
+                        console.log(`📊 SCORES CHANGED: ${lastScores.away}-${lastScores.home} → ${currentAwayScore}-${currentHomeScore}`);
+                        lastScores = { home: currentHomeScore, away: currentAwayScore };
+                    } else {
+                        console.log(`📊 Scores unchanged: ${currentAwayScore}-${currentHomeScore}`);
+                    }
+                    
                     updateGameDisplay(gameData);
                     
                     // Set up live updates if game is in progress
-                    if (!gameData.completed && gameData.status.includes('PM') || gameData.status.includes('AM')) {
+                    const isLiveGame = !gameData.completed && (
+                        gameData.status.includes('Q1') || gameData.status.includes('Q2') || 
+                        gameData.status.includes('Q3') || gameData.status.includes('Q4') ||
+                        gameData.status.includes('Halftime') || gameData.status.includes('OT') ||
+                        /\d+:\d+\s*-\s*\d+(st|nd|rd|th)/.test(gameData.status)
+                    );
+                    
+                    if (isLiveGame) {
                         startLiveUpdates();
                     }
                 } else {
@@ -124,35 +221,94 @@
 
         function updateGameDisplay(game) {
             // Update header with gradient
-            document.getElementById('header').style.background = `linear-gradient(135deg, ${AWAY_COLOR} 0%, ${HOME_COLOR} 100%)`;
+            const header = document.getElementById('header');
+            if (header) {
+                header.style.background = `linear-gradient(135deg, ${AWAY_COLOR} 0%, ${HOME_COLOR} 100%)`;
+            }
             
             // Update teams
-            document.getElementById('awayLogo').src = game.away.logo;
-            document.getElementById('awayName').innerText = game.away.name;
-            document.getElementById('awayRecord').innerText = game.away.record;
-            document.getElementById('awayScore').innerText = game.away.score;
+            const awayLogo = document.getElementById('awayLogo');
+            const awayName = document.getElementById('awayName');
+            const awayRecord = document.getElementById('awayRecord');
+            const awayScore = document.getElementById('awayScore');
             
-            document.getElementById('homeLogo').src = game.home.logo;
-            document.getElementById('homeName').innerText = game.home.name;
-            document.getElementById('homeRecord').innerText = game.home.record;
-            document.getElementById('homeScore').innerText = game.home.score;
+            if (awayLogo) {
+                awayLogo.src = game.away.logo;
+                awayLogo.setAttribute('data-team-id', game.away.id);
+                awayLogo.setAttribute('data-team-color', game.away.color);
+            }
+            if (awayName) awayName.innerText = game.away.name;
+            if (awayRecord) awayRecord.innerText = game.away.record;
+            if (awayScore) {
+                awayScore.innerText = game.away.score;
+            }
+            
+            const homeLogo = document.getElementById('homeLogo');
+            const homeName = document.getElementById('homeName');
+            const homeRecord = document.getElementById('homeRecord');
+            const homeScore = document.getElementById('homeScore');
+            
+            if (homeLogo) {
+                homeLogo.src = game.home.logo;
+                homeLogo.setAttribute('data-team-id', game.home.id);
+                homeLogo.setAttribute('data-team-color', game.home.color);
+            }
+            if (homeName) homeName.innerText = game.home.name;
+            if (homeRecord) homeRecord.innerText = game.home.record;
+            if (homeScore) {
+                homeScore.innerText = game.home.score;
+            }
             
             // Update status
             const statusEl = document.getElementById('gameStatus');
             const statusText = document.getElementById('statusText');
-            statusText.innerText = game.status;
+            const liveIndicator = document.getElementById('liveIndicator');
             
-            if (game.completed) {
-                statusEl.className = 'game-status';
-                if (parseInt(game.home.score) > parseInt(game.away.score)) {
+            // Only apply live styling for actually live games
+            const isLiveGame = !game.completed && (
+                game.status.includes('Q1') || game.status.includes('Q2') || 
+                game.status.includes('Q3') || game.status.includes('Q4') ||
+                game.status.includes('Halftime') || game.status.includes('OT') ||
+                /\d+:\d+\s*-\s*\d+(st|nd|rd|th)/.test(game.status)
+            );
+            
+            // Format status with red time for live games
+            let displayStatus = game.status;
+            if (isLiveGame && /\d+:\d+\s*-\s*\d+(st|nd|rd|th)/.test(game.status)) {
+                const timeMatch = game.status.match(/(\d+:\d+)/);
+                const quarterNum = game.status.match(/(\d+)(?:st|nd|rd|th)/);
+                if (timeMatch && quarterNum) {
+                    displayStatus = `Q${quarterNum[1]} <span class="live-text white">${timeMatch[1]}</span>`;
+                }
+            }
+            
+            console.log('Game status:', game.status);
+            console.log('Is completed:', game.completed);
+            console.log('Is live game:', isLiveGame);
+            
+            if (statusText) statusText.innerHTML = displayStatus;
+            
+            if (isLiveGame) {
+                if (statusEl) statusEl.className = 'game-status live';
+                if (liveIndicator) liveIndicator.style.display = 'block';
+                console.log('🔴 Game is LIVE - showing live indicator');
+            } else if (game.completed) {
+                if (statusEl) statusEl.className = 'game-status';
+                if (liveIndicator) liveIndicator.style.display = 'none';
+                if (statusEl && parseInt(game.home.score) > parseInt(game.away.score)) {
                     statusEl.style.background = game.home.color;
                     statusEl.style.color = 'white';
-                } else {
+                } else if (statusEl) {
                     statusEl.style.background = game.away.color;
                     statusEl.style.color = 'white';
                 }
             } else {
-                statusEl.className = 'game-status live';
+                if (statusEl) {
+                    statusEl.className = 'game-status';
+                    statusEl.style.background = '#f0f0f0';
+                    statusEl.style.color = '#333';
+                }
+                if (liveIndicator) liveIndicator.style.display = 'none';
             }
             
             // Update game details
@@ -166,7 +322,11 @@
 
         function startLiveUpdates() {
             // Update every 10 seconds for live games
-            updateInterval = setInterval(loadGameData, 10000);
+            console.log('🔄 Starting live updates - will refresh every 10 seconds');
+            updateInterval = setInterval(() => {
+                console.log('🔄 Refreshing live data at:', new Date().toLocaleTimeString());
+                loadGameData();
+            }, 10000);
         }
 
         function stopLiveUpdates() {
@@ -177,6 +337,27 @@
 
         // Load initial data
         loadGameData();
+        
+        function goToTeam(teamType) {
+            // Get current game data from the last load
+            const awayTeam = {
+                id: document.getElementById('awayLogo').getAttribute('data-team-id') || '',
+                name: document.getElementById('awayName').innerText,
+                color: document.getElementById('awayLogo').getAttribute('data-team-color') || '#333333'
+            };
+            
+            const homeTeam = {
+                id: document.getElementById('homeLogo').getAttribute('data-team-id') || '',
+                name: document.getElementById('homeName').innerText,
+                color: document.getElementById('homeLogo').getAttribute('data-team-color') || '#333333'
+            };
+            
+            const team = teamType === 'away' ? awayTeam : homeTeam;
+            
+            if (team.id) {
+                location.href = `team.html?id=${team.id}&color=${encodeURIComponent(team.color)}&name=${encodeURIComponent(team.name)}`;
+            }
+        }
 
         // Clean up on page unload
         window.addEventListener('beforeunload', stopLiveUpdates);
