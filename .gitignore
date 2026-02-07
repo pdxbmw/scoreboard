@@ -1,0 +1,11 @@
+# Data folder for scraped scores
+data/
+
+# Teams folder for individual team data
+teams/
+
+# Main scores file (now in data folder)
+scores.json
+
+# Virtual environment
+venv/

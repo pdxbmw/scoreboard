@@ -14,6 +14,7 @@
             text-align: center; box-shadow: 0 4px 10px rgba(0,0,0,0.2); position: sticky; top: 0; z-index: 100;
         }
         .header h1 { margin: 10px 0 5px 0; font-size: 2.5rem; }
+        .header-content { display: flex; flex-direction: column; align-items: center; justify-content: center; }
         .back-btn { 
             position: absolute; top: 20px; left: 20px; background: rgba(255,255,255,0.2); 
             color: white; border: none; padding: 8px 15px; border-radius: 20px; font-weight: bold; cursor: pointer;
@@ -27,11 +28,11 @@
             display: flex; align-items: center; justify-content: space-between;
             box-shadow: 0 2px 5px rgba(0,0,0,0.05);
         }
-        .game-date { font-size: 0.8rem; color: #888; width: 60px; }
-        .opponent { display: flex; align-items: center; gap: 10px; flex: 1; }
+        .game-date { font-size: 0.8rem; color: #888; width: 80px; white-space: nowrap; }
+        .opponent { display: flex; align-items: center; justify-content: center; gap: 10px; flex: 1; }
         .opponent img { width: 40px; height: 40px; object-fit: contain; }
         .opponent-name { font-weight: bold; color: #333; }
-        .result { font-size: 1.2rem; font-weight: bold; width: 80px; text-align: right; }
+        .result { font-size: 1.2rem; font-weight: bold; width: 80px; text-align: right; white-space: nowrap; }
         
         .win { color: #2e7d32; } /* Green */
         .loss { color: #c62828; } /* Red */
@@ -42,7 +43,10 @@
 
     <div class="header" id="header">
         <a href="index.html" class="back-btn">← Back</a>
-        <h1 id="teamName">Loading...</h1>
+        <div class="header-content">
+            <h1 id="teamName">Loading...</h1>
+            <div id="teamRecord" style="font-size: 1rem; opacity: 0.9;"></div>
+        </div>
     </div>
 
     <div class="game-list" id="games">
@@ -62,43 +66,87 @@
 
         async function loadHistory() {
             // FIX: Load from our LOCAL folder, not ESPN directly
-            const url = `teams/${TEAM_ID}.json`;
+            const url = `data/teams/${TEAM_ID}.json`;
+            console.log('Fetching from:', url);
             
             try {
                 const res = await fetch(url);
-                if (!res.ok) throw new Error("File not found");
+                console.log('Response status:', res.status);
+                if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
                 
                 const data = await res.json();
+                console.log('Data keys:', Object.keys(data));
                 const events = data.events || [];
+                console.log('Events count:', events.length);
+                
+                // Extract team record from team data
+                const teamRecord = data.team?.recordSummary || 'Season Record';
+                console.log('Team record found:', teamRecord);
+                document.getElementById('teamRecord').innerText = teamRecord;
+                
                 renderGames(events);
             } catch(e) {
+                console.error('Error loading team data:', e);
                 document.getElementById('games').innerHTML = `
                     <p align='center'>
                         Still updating...<br>
                         <small>The robot is fetching this team's data.<br>Try again in 2 minutes.</small>
+                        <br><small>Error: ${e.message}</small>
                     </p>`;
             }
         }
 
-        function renderGames(events) {
+        async function getOpponentRecord(opponentId) {
+            try {
+                console.log(`Fetching record for opponent ${opponentId}`);
+                const res = await fetch(`data/teams/${opponentId}.json`);
+                if (res.ok) {
+                    const data = await res.json();
+                    const record = data.team?.recordSummary;
+                    console.log(`Opponent ${opponentId} record:`, record);
+                    return record || '';
+                } else {
+                    console.log(`Opponent ${opponentId} file not found (status: ${res.status})`);
+                }
+            } catch (e) {
+                console.log('Could not fetch opponent record for', opponentId, e);
+            }
+            return '';
+        }
+
+        async function renderGames(events) {
             const container = document.getElementById('games');
             container.innerHTML = '';
             
-            events.forEach(event => {
-                const game = event.competitions[0];
-                const isHome = game.competitors[0].team.id === TEAM_ID; 
+            // Sort events by date (oldest first for chronological order)
+            events.sort((a, b) => new Date(a.date) - new Date(b.date));
+            
+            for (const event of events) {
+                const game = event.competitions && event.competitions[0];
+                if (!game) {
+                    console.warn('No competition data for event:', event);
+                    continue;
+                }
                 
-                const opponent = game.competitors.find(c => c.team.id !== TEAM_ID);
-                const myTeam = game.competitors.find(c => c.team.id === TEAM_ID);
+                const opponent = game.competitors && game.competitors.find(c => c.team && c.team.id !== TEAM_ID);
+                const myTeam = game.competitors && game.competitors.find(c => c.team && c.team.id === TEAM_ID);
+                
+                if (!opponent || !myTeam) {
+                    console.warn('Missing team data for event:', event);
+                    continue;
+                }
                 
                 const dateObj = new Date(event.date);
-                const dateStr = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                const dateStr = `${dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}, ${dateObj.getFullYear()}`;
                 
                 const div = document.createElement('div');
                 div.className = 'game-row';
 
                 let resultHTML = "";
-                if (event.status.type.completed) {
+                // Check status at competition level
+                const isCompleted = game.status && game.status.type && game.status.type.completed;
+                
+                if (isCompleted) {
                     const myScore = parseInt(myTeam.score?.value || 0);
                     const opScore = parseInt(opponent.score?.value || 0);
                     const isWin = myScore > opScore;
@@ -107,19 +155,27 @@
                         ${isWin ? 'W' : 'L'} ${myScore}-${opScore}
                     </span>`;
                 } else {
-                    resultHTML = `<span class="result future">${dateObj.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>`;
+                    // Show game time for upcoming games
+                    const timeStr = dateObj.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                    resultHTML = `<span class="result future">${timeStr}</span>`;
                 }
+
+                // Get opponent record from their team data
+                const opponentRecord = await getOpponentRecord(opponent.team.id);
 
                 div.innerHTML = `
                     <span class="game-date">${dateStr}</span>
                     <div class="opponent">
                         <img src="${opponent.team.logos?.[0]?.href || ''}">
-                        <span class="opponent-name">${opponent.team.abbreviation || opponent.team.shortDisplayName}</span>
+                        <div>
+                            <span class="opponent-name">${opponent.team.abbreviation || opponent.team.shortDisplayName || 'Unknown'}</span>
+                            ${opponentRecord ? `<div class="record">${opponentRecord}</div>` : ''}
+                        </div>
                     </div>
                     ${resultHTML}
                 `;
                 container.appendChild(div);
-            });
+            }
         }
 
         loadHistory();

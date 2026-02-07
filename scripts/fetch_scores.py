@@ -85,13 +85,13 @@ for offset in range(-DAYS_BACK, DAYS_FORWARD + 1):
     all_data[date_str] = daily_games
 
 # Save Main Scoreboard
-with open('scores.json', 'w') as f:
+with open('../data/scores.json', 'w') as f:
     json.dump(all_data, f)
 
 # 2. FETCH INDIVIDUAL TEAM HISTORIES (The Fix for CORS)
 print(f"--- Fetching History for {len(teams_to_fetch)} Teams ---")
-if not os.path.exists("teams"):
-    os.makedirs("teams")
+if not os.path.exists("../data/teams"):
+    os.makedirs("../data/teams")
 
 for (team_id, sport, league_slug) in teams_to_fetch:
     try:
@@ -99,8 +99,8 @@ for (team_id, sport, league_slug) in teams_to_fetch:
         url = f"https://site.api.espn.com/apis/site/v2/sports/{sport}/{league_slug}/teams/{team_id}/schedule"
         data = requests.get(url).json()
         
-        # Save to teams/TEAM_ID.json
-        with open(f"teams/{team_id}.json", 'w') as f:
+        # Save to data/teams/TEAM_ID.json
+        with open(f"../data/teams/{team_id}.json", 'w') as f:
             json.dump(data, f)
             
     except Exception as e:

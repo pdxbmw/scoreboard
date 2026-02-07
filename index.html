@@ -49,7 +49,7 @@
         
         async function init() {
             try {
-                const res = await fetch('scores.json?t=' + Date.now());
+                const res = await fetch('data/scores.json?t=' + Date.now());
                 allData = await res.json();
                 dateKeys = Object.keys(allData).sort();
                 const todayStr = new Date().toISOString().slice(0,10).replace(/-/g,"");
