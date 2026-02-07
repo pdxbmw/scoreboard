@@ -37,7 +37,7 @@
         .league-pill { font-size: 0.68rem; font-weight: 600; color: #555; padding: 3px 8px; border-radius: 999px; display: inline-flex; align-items: center; gap: 6px; letter-spacing: 0.2px; background: #f9f9f9; border: 1px solid #e0e0e0; }
         .league-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
         .live { background: #ff4444; color: white; animation: pulse 2s infinite; }
-        .live-text { color: #ff4444; font-size: 0.85rem; font-weight: bold; }
+        .live-text { color: #fff; font-size: 0.85rem; font-weight: bold; }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
     </style>
 </head>
@@ -48,13 +48,13 @@
         <button class="nav-btn" onclick="changeDate(1)">→</button>
     </div>
     <div class="filters">
-        <button class="filter-btn no-dot active" onclick="filter('ALL')">All</button>
-        <button class="filter-btn" style="--dot:#0b5f8a" onclick="filter('nfl')"><span class="dot"></span>NFL</button>
-        <button class="filter-btn" style="--dot:#8b3f0a" onclick="filter('ncaa_fb')"><span class="dot"></span>NCAA FB</button>
-        <button class="filter-btn" style="--dot:#1d428a" onclick="filter('nba')"><span class="dot"></span>NBA</button>
-        <button class="filter-btn" style="--dot:#e46b0c" onclick="filter('wnba')"><span class="dot"></span>WNBA</button>
-        <button class="filter-btn" style="--dot:#006847" onclick="filter('ncaa_mb')"><span class="dot"></span>NCAA Men</button>
-        <button class="filter-btn" style="--dot:#7d0068" onclick="filter('ncaa_wb')"><span class="dot"></span>NCAA Women</button>
+        <button class="filter-btn no-dot active" onclick="filter('ALL', this)">All</button>
+        <button class="filter-btn" style="--dot:#0b5f8a" onclick="filter('nfl', this)"><span class="dot"></span>NFL</button>
+        <button class="filter-btn" style="--dot:#8b3f0a" onclick="filter('ncaa_fb', this)"><span class="dot"></span>NCAA FB</button>
+        <button class="filter-btn" style="--dot:#1d428a" onclick="filter('nba', this)"><span class="dot"></span>NBA</button>
+        <button class="filter-btn" style="--dot:#e46b0c" onclick="filter('wnba', this)"><span class="dot"></span>WNBA</button>
+        <button class="filter-btn" style="--dot:#006847" onclick="filter('ncaa_mb', this)"><span class="dot"></span>NCAA Men</button>
+        <button class="filter-btn" style="--dot:#7d0068" onclick="filter('ncaa_wb', this)"><span class="dot"></span>NCAA Women</button>
     </div>
     <div class="grid" id="app">Loading...</div>
     <script>
@@ -67,6 +67,12 @@
             wnba: { label: 'WNBA', color: '#e46b0c' },
             ncaa_mb: { label: 'NCAA M', color: '#006847' },
             ncaa_wb: { label: 'NCAA W', color: '#7d0068' },
+        };
+
+        const ESPN_ENDPOINTS = {
+            nba: `https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?dates=` ,
+            ncaa_mb: `https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/scoreboard?dates=` ,
+            ncaa_wb: `https://site.api.espn.com/apis/site/v2/sports/basketball/womens-college-basketball/scoreboard?dates=` ,
         };
 
         function hexToRgba(hex, alpha = 0.12) {
@@ -173,67 +179,95 @@
         }
 
         async function updateTodayWithESPN(todayStr) {
-            try {
-                console.log('🔄 Fetching ESPN data for today');
-                const url = `https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?dates=${todayStr}`;
-                const res = await fetch(url);
-                const data = await res.json();
-                
-                if (data.events && data.events.length > 0) {
-                    const espnGames = [];
+            const existing = allData[todayStr] || [];
+            const leaguesToUpdate = new Set(existing.map(g => g.league_key).filter(k => ESPN_ENDPOINTS[k]));
+            if (leaguesToUpdate.size === 0) leaguesToUpdate.add('nba');
+
+            const parsedGames = [];
+            for (const leagueKey of leaguesToUpdate) {
+                const endpoint = ESPN_ENDPOINTS[leagueKey];
+                if (!endpoint) continue;
+                try {
+                    console.log(`🔄 Fetching ESPN ${leagueKey} for today`);
+                    const res = await fetch(`${endpoint}${todayStr}`);
+                    const data = await res.json();
+                    if (!data.events || data.events.length === 0) continue;
                     for (const event of data.events) {
-                        const comp = event.competitions[0];
-                        const status = comp.status?.type?.shortDetail || '';
-                        const home = comp.competitors[0];
-                        const away = comp.competitors[1];
+                        const comp = event.competitions?.[0];
+                        if (!comp) continue;
+                        const status = comp.status?.type?.shortDetail || comp.status?.type?.detail || '';
+                        const home = comp.competitors?.[0];
+                        const away = comp.competitors?.[1];
+                        if (!home || !away) continue;
                         const startLocal = new Date(event.date).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-                        
-                        const gameData = {
+                        parsedGames.push({
                             id: event.id,
-                            league: "NBA",
-                            league_key: "nba",
-                            status: status,
+                            league: LEAGUE_META[leagueKey]?.label || leagueKey.toUpperCase(),
+                            league_key: leagueKey,
+                            status,
                             completed: comp.status?.type?.completed || false,
                             date: event.date,
                             start_local: startLocal,
                             home: {
-                                id: home.team.id,
-                                name: home.team.shortDisplayName,
+                                id: home.team?.id,
+                                name: home.team?.shortDisplayName || home.team?.displayName,
                                 score: home.score,
-                                logo: home.team.logos?.[0]?.href || home.team.logo || '',
-                                color: "#" + (home.team.color || '333333'),
+                                logo: home.team?.logos?.[0]?.href || home.team?.logo || '',
+                                color: "#" + (home.team?.color || '333333'),
                                 record: home.records?.[0]?.summary || '0-0'
                             },
                             away: {
-                                id: away.team.id,
-                                name: away.team.shortDisplayName,
+                                id: away.team?.id,
+                                name: away.team?.shortDisplayName || away.team?.displayName,
                                 score: away.score,
-                                logo: away.team.logos?.[0]?.href || away.team.logo || '',
-                                color: "#" + (away.team.color || '333333'),
+                                logo: away.team?.logos?.[0]?.href || away.team?.logo || '',
+                                color: "#" + (away.team?.color || '333333'),
                                 record: away.records?.[0]?.summary || '0-0'
                             }
-                        };
-                        espnGames.push(gameData);
+                        });
                     }
-                    
-                    // Update today's data with ESPN data
-                    allData[todayStr] = espnGames;
-                    console.log('✅ Updated today with ESPN data:', espnGames.length, 'games');
-                    return espnGames;
+                } catch (e) {
+                    console.log(`⚠️ ESPN fetch failed for ${leagueKey}:`, e);
                 }
-            } catch (e) {
-                console.log('⚠️ Could not fetch ESPN data, using scraped data:', e);
-                return null;
             }
-            return null;
+
+            // Keep leagues we didn't refresh, replace those we did
+            const kept = existing.filter(g => !leaguesToUpdate.has(g.league_key));
+            allData[todayStr] = [...kept, ...parsedGames];
+            console.log('✅ Updated today with ESPN data:', parsedGames.length, 'games; kept existing:', kept.length);
+            return allData[todayStr];
+        }
+
+        function isLiveGame(game) {
+            if (game.completed) return false;
+            const status = (game.status || '').toLowerCase();
+            if (status.includes('in progress')) return true;
+            if (status.includes('1st') || status.includes('2nd') || status.includes('3rd') || status.includes('4th')) return true;
+            if (status.includes('quarter') || status.includes('half') || status.includes('period') || status.includes('ot')) return true;
+            // NCAA detail strings like "10:21 - 1st"
+            if (/\d+:\d+\s*-\s*\d+(st|nd|rd|th)/i.test(status)) return true;
+            // Any clock without AM/PM likely live (e.g., "12:05")
+            if (/\d+:\d+/.test(status) && !status.includes('am') && !status.includes('pm')) return true;
+            return false;
         }
 
         function startAutoRefresh() {
-            // Check for live games and refresh every 30 seconds if found
+            if (autoRefreshInterval) clearInterval(autoRefreshInterval);
             autoRefreshInterval = setInterval(() => {
+                const today = new Date();
+                const todayStr = today.getFullYear().toString() + 
+                    (today.getMonth() + 1).toString().padStart(2, '0') + 
+                    today.getDate().toString().padStart(2, '0');
+                const dateKey = dateKeys[currentIndex];
+                if (dateKey === todayStr) {
+                    // Always refresh today to pick up newly-live games
+                    init();
+                    return;
+                }
+                // For other days, only refresh if any game is live
                 const hasLiveGames = checkForLiveGames();
                 if (hasLiveGames) {
-                    init(); // Refresh data
+                    init();
                 }
             }, 30000);
         }
@@ -241,9 +275,7 @@
         function checkForLiveGames() {
             for (const dateKey in allData) {
                 for (const game of allData[dateKey]) {
-                    if (!game.completed && (game.status.includes('PM') || game.status.includes('AM') || game.status.includes('ET') || game.status.includes('PT'))) {
-                        return true;
-                    }
+                    if (isLiveGame(game)) return true;
                 }
             }
             return false;
@@ -290,15 +322,10 @@
                 
                 // Make entire card clickable to go to game page (we can get ESPN data for any game)
                 div.style.cursor = 'pointer';
-                div.onclick = () => location.href = `game.html?id=${game.id}&homeColor=${encodeURIComponent(game.home.color)}&awayColor=${encodeURIComponent(game.away.color)}`;
+                div.onclick = () => location.href = `game.html?id=${game.id}&league=${game.league_key || ''}&homeColor=${encodeURIComponent(game.home.color)}&awayColor=${encodeURIComponent(game.away.color)}`;
                 
                 // Check if game is live and extract time
-                const isLive = !game.completed && (
-                    game.status.includes('Q1') || game.status.includes('Q2') || 
-                    game.status.includes('Q3') || game.status.includes('Q4') ||
-                    game.status.includes('Halftime') || game.status.includes('OT') ||
-                    /\d+:\d+\s*-\s*\d+(st|nd|rd|th)/.test(game.status)
-                );
+                const isLive = isLiveGame(game);
                 
                 let displayStatus = game.status;
                 if (isLive && /\d+:\d+\s*-\s*\d+(st|nd|rd|th)/.test(game.status)) {
@@ -331,7 +358,7 @@
                         <div class="score-board">
                             <span class="league-pill" style="border-color:${leagueMeta.color}; background:${badgeBg}"><span class="league-dot" style="background:${leagueMeta.color}"></span>${leagueMeta.label}</span>
                             <span class="${game.away.score === '0' && game.home.score === '0' ? 'score at-symbol' : 'score'}">${game.away.score === '0' && game.home.score === '0' ? '@' : `${game.away.score}-${game.home.score}`}</span>
-                            <div class="status">${displayStatus}</div>
+                            <div class="status ${isLive ? 'live' : ''}">${displayStatus}</div>
                         </div>
                         <div class="team">
                             <img src="${game.home.logo}">
@@ -344,10 +371,10 @@
             });
         }
         
-        function filter(key) { 
+        function filter(key, el) { 
             currentFilter = key; 
             document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active')); 
-            event.currentTarget.classList.add('active'); 
+            if (el) el.classList.add('active');
             render(); 
         }
         

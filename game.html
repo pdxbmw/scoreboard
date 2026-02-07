@@ -233,11 +233,29 @@
         // Parse URL params
         const params = new URLSearchParams(window.location.search);
         const GAME_ID = params.get('id');
+        const LEAGUE_KEY = params.get('league') || 'nba';
         const HOME_COLOR = decodeURIComponent(params.get('homeColor') || '#333333');
         const AWAY_COLOR = decodeURIComponent(params.get('awayColor') || '#333333');
 
         let updateInterval;
-let lastScores = { home: 0, away: 0 };
+        let lastScores = { home: 0, away: 0 };
+
+        const LEAGUE_ENDPOINTS = {
+            nba: 'https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard',
+            ncaa_mb: 'https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/scoreboard',
+            ncaa_wb: 'https://site.api.espn.com/apis/site/v2/sports/basketball/womens-college-basketball/scoreboard'
+        };
+
+        function isLiveStatus(status) {
+            if (!status) return false;
+            const s = status.toLowerCase();
+            if (s.includes('in progress')) return true;
+            if (s.includes('q1') || s.includes('q2') || s.includes('q3') || s.includes('q4')) return true;
+            if (s.includes('half') || s.includes('ot')) return true;
+            if (/\d+:\d+\s*-\s*\d+(st|nd|rd|th)/i.test(s)) return true;
+            if (/\d+:\d+/.test(s) && !s.includes('am') && !s.includes('pm')) return true;
+            return false;
+        }
 
         async function loadGameData() {
             if (!GAME_ID) {
@@ -251,53 +269,53 @@ let lastScores = { home: 0, away: 0 };
                 
                 // First try to get data from ESPN API
                 try {
-                    const gameUrl = `https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard`;
+                    const gameUrl = LEAGUE_ENDPOINTS[LEAGUE_KEY] || LEAGUE_ENDPOINTS.nba;
                     console.log('Fetching from URL:', gameUrl);
                     
                     const gameRes = await fetch(gameUrl);
                     const gameDataResponse = await gameRes.json();
                     
                     console.log('Game data response events count:', gameDataResponse.events?.length || 0);
-                    console.log('Looking for game ID:', GAME_ID);
+                    console.log('Looking for game ID:', GAME_ID, 'league:', LEAGUE_KEY);
                     
                     // Find our game in the data
                     for (const event of gameDataResponse.events) {
-                        console.log('Checking event ID:', event.id);
                         if (event.id === GAME_ID) {
-                            const comp = event.competitions[0];
-                            const status = comp.status?.type?.shortDetail || '';
-                            const home = comp.competitors[0];
-                            const away = comp.competitors[1];
-                            
-                            console.log('Found game - League from ESPN:', event.leagues?.[0]?.name);
+                            const comp = event.competitions?.[0];
+                            if (!comp) continue;
+                            const status = comp.status?.type?.shortDetail || comp.status?.type?.detail || '';
+                            const home = comp.competitors?.find(c => c.homeAway === 'home') || comp.competitors?.[0];
+                            const away = comp.competitors?.find(c => c.homeAway === 'away') || comp.competitors?.[1];
+                            if (!home || !away) continue;
                             
                             gameData = {
                                 id: event.id,
-                                league: event.leagues?.[0]?.name || 'NBA',
-                                league_key: 'nba',
+                                league: event.leagues?.[0]?.name || (LEAGUE_KEY === 'ncaa_mb' ? 'NCAA Men' : LEAGUE_KEY === 'ncaa_wb' ? 'NCAA Women' : 'NBA'),
+                                league_key: LEAGUE_KEY,
                                 sport: 'basketball',
-                                league_slug: 'nba',
+                                league_slug: LEAGUE_KEY,
                                 date_label: new Date(event.date).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' }),
                                 status: status,
                                 completed: comp.status?.type?.completed || false,
                                 fullCompetition: comp,
                                 away: {
-                                    name: away.team.displayName,
-                                    logo: away.team.logos?.[0]?.href || away.team.logo || '',
-                                    color: AWAY_COLOR || "#" + (away.team.color || '333333'),
+                                    name: away.team?.displayName,
+                                    logo: away.team?.logos?.[0]?.href || away.team?.logo || '',
+                                    color: AWAY_COLOR || "#" + (away.team?.color || '333333'),
                                     record: away.records?.[0]?.summary || '0-0',
-                                    score: away.score || '0'
+                                    score: away.score || '0',
+                                    id: away.team?.id
                                 },
                                 home: {
-                                    name: home.team.displayName,
-                                    logo: home.team.logos?.[0]?.href || home.team.logo || '',
-                                    color: HOME_COLOR || "#" + (home.team.color || '333333'),
+                                    name: home.team?.displayName,
+                                    logo: home.team?.logos?.[0]?.href || home.team?.logo || '',
+                                    color: HOME_COLOR || "#" + (home.team?.color || '333333'),
                                     record: home.records?.[0]?.summary || '0-0',
-                                    score: home.score || '0'
+                                    score: home.score || '0',
+                                    id: home.team?.id
                                 }
                             };
-                            console.log('🔴 Detailed game data fetched from ESPN API');
-                            console.log('🔴 Game data:', gameData);
+                            console.log('✅ Detailed game data fetched from ESPN API');
                             break;
                         }
                     }
@@ -348,15 +366,12 @@ let lastScores = { home: 0, away: 0 };
                     updateGameDisplay(gameData);
                     
                     // Set up live updates only for live ESPN games
-                    const isLiveGame = !gameData.completed && (
-                        gameData.status.includes('Q1') || gameData.status.includes('Q2') || 
-                        gameData.status.includes('Q3') || gameData.status.includes('Q4') ||
-                        gameData.status.includes('Halftime') || gameData.status.includes('OT') ||
-                        /\d+:\d+\s*-\s*\d+(st|nd|rd|th)/.test(gameData.status)
-                    );
+                    const isLiveGame = isLiveStatus(gameData.status);
                     
                     if (isLiveGame) {
                         startLiveUpdates();
+                    } else {
+                        stopLiveUpdates();
                     }
                 } else {
                     document.getElementById('gameTitle').innerText = 'Game Not Found';
@@ -436,12 +451,7 @@ let lastScores = { home: 0, away: 0 };
             const liveIndicator = document.getElementById('liveIndicator');
             
             // Only apply live styling for actually live games
-            const isLiveGame = !game.completed && (
-                game.status.includes('Q1') || game.status.includes('Q2') || 
-                game.status.includes('Q3') || game.status.includes('Q4') ||
-                game.status.includes('Halftime') || game.status.includes('OT') ||
-                /\d+:\d+\s*-\s*\d+(st|nd|rd|th)/.test(game.status)
-            );
+            const isLiveGame = !game.completed && isLiveStatus(game.status);
             
             // Format status with red time for live games
             let displayStatus = game.status;
@@ -852,90 +862,7 @@ let lastScores = { home: 0, away: 0 };
         }
 
         function startLiveUpdates() {
-            const leadersContainer = document.getElementById('teamLeaders');
-            if (!leadersContainer) return;
-            
-            // Mock data for now - we'll extract this from ESPN API later
-            const leaders = [
-                { team: 'away', name: 'Ja Morant', stat: 'Points', value: '28' },
-                { team: 'home', name: 'Damian Lillard', stat: 'Points', value: '31' },
-                { team: 'away', name: 'Jaren Jackson Jr.', stat: 'Rebounds', value: '12' },
-                { team: 'home', name: 'Jusuf Nurkić', stat: 'Rebounds', value: '14' },
-                { team: 'away', name: 'Tyus Jones', stat: 'Assists', value: '8' },
-                { team: 'home', name: 'Anfernee Simons', stat: 'Assists', value: '9' }
-            ];
-            
-            let html = '';
-            leaders.forEach(leader => {
-                const teamColor = leader.team === 'away' ? game.away.color : game.home.color;
-                const teamName = leader.team === 'away' ? game.away.name : game.home.name;
-                html += `
-                    <div class="stat-row">
-                        <span class="stat-label">${teamName} - ${leader.name}</span>
-                        <span class="stat-value">${leader.value} ${leader.stat}</span>
-                    </div>
-                `;
-            });
-            
-            leadersContainer.innerHTML = html;
-        }
-        
-        function updateGameStats(game) {
-            const statsContainer = document.getElementById('gameStats');
-            if (!statsContainer) return;
-            
-            // Mock data for now - we'll extract this from ESPN API later
-            const stats = [
-                { label: 'Field Goal %', away: '48.5%', home: '52.1%' },
-                { label: '3-Point %', away: '35.2%', home: '41.7%' },
-                { label: 'Free Throw %', away: '78.9%', home: '82.4%' },
-                { label: 'Total Rebounds', away: '42', home: '45' },
-                { label: 'Assists', away: '23', home: '27' },
-                { label: 'Turnovers', away: '11', home: '8' }
-            ];
-            
-            let html = '';
-            stats.forEach(stat => {
-                html += `
-                    <div class="stat-row">
-                        <span class="stat-label">${stat.label}</span>
-                        <span class="stat-value">${stat.away} - ${stat.home}</span>
-                    </div>
-                `;
-            });
-            
-            statsContainer.innerHTML = html;
-        }
-        
-        function updatePlayByPlay(game) {
-            const playContainer = document.getElementById('playByPlay');
-            if (!playContainer) return;
-            
-            // Mock data for now - we'll extract this from ESPN API later
-            const plays = [
-                { time: '7:31', text: 'Damian Lillard makes 3-point shot', score: '56-53' },
-                { time: '7:45', text: 'Ja Morant makes driving layup', score: '56-51' },
-                { time: '8:02', text: 'Jusuf Nurkić defensive rebound', score: '54-51' },
-                { time: '8:15', text: 'Anfernee Simons makes free throw 1 of 2', score: '54-51' },
-                { time: '8:30', text: 'Timeout called by Portland', score: '54-50' }
-            ];
-            
-            let html = '';
-            plays.forEach(play => {
-                html += `
-                    <div class="play-item">
-                        <div class="play-time">${play.time}</div>
-                        <div class="play-text">${play.text}</div>
-                        <div class="play-score">${play.score}</div>
-                    </div>
-                `;
-            });
-            
-            playContainer.innerHTML = html;
-        }
-
-        function startLiveUpdates() {
-            // Update every 10 seconds for live games
+            if (updateInterval) clearInterval(updateInterval);
             console.log('🔄 Starting live updates - will refresh every 10 seconds');
             updateInterval = setInterval(() => {
                 console.log('🔄 Refreshing live data at:', new Date().toLocaleTimeString());
