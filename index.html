@@ -21,9 +21,12 @@
         .team img { width: 55px; height: 55px; object-fit: contain; }
         .team-name { font-size: 0.85rem; margin-top: 5px; text-align: center; }
         .record { font-size: 0.75rem; color: #888; }
-        .score-board { text-align: center; flex: 0 0 85px; }
+        .score-board { text-align: center; flex: 0 0 85px; cursor: pointer; }
+        .score-board:hover { background: rgba(0,0,0,0.05); border-radius: 12px; }
         .score { font-size: 1.8rem; font-weight: 600; color: #333; }
         .status { font-size: 0.75rem; color: #999; background: #eee; padding: 2px 8px; border-radius: 8px; }
+        .live { background: #ff4444; color: white; animation: pulse 2s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
         .winner-home { border-bottom: 6px solid; border-bottom-color: var(--home-color); }
         .winner-away { border-bottom: 6px solid; border-bottom-color: var(--away-color); }
     </style>
@@ -45,7 +48,7 @@
     </div>
     <div class="grid" id="app">Loading...</div>
     <script>
-        let allData = {}, dateKeys = [], currentIndex = 0, currentFilter = 'ALL';
+        let allData = {}, dateKeys = [], currentIndex = 0, currentFilter = 'ALL', autoRefreshInterval;
         
         async function init() {
             try {
@@ -56,7 +59,29 @@
                 currentIndex = dateKeys.indexOf(todayStr);
                 if (currentIndex === -1) currentIndex = Math.floor(dateKeys.length / 2);
                 render();
+                startAutoRefresh();
             } catch (e) { document.getElementById('app').innerHTML = "<p align='center'>Updating stats...</p>"; }
+        }
+
+        function startAutoRefresh() {
+            // Check for live games and refresh every 30 seconds if found
+            autoRefreshInterval = setInterval(() => {
+                const hasLiveGames = checkForLiveGames();
+                if (hasLiveGames) {
+                    init(); // Refresh data
+                }
+            }, 30000);
+        }
+
+        function checkForLiveGames() {
+            for (const dateKey in allData) {
+                for (const game of allData[dateKey]) {
+                    if (!game.completed && (game.status.includes('PM') || game.status.includes('AM') || game.status.includes('ET') || game.status.includes('PT'))) {
+                        return true;
+                    }
+                }
+            }
+            return false;
         }
 
         function render() {
@@ -79,6 +104,10 @@
                     else div.classList.add('winner-away');
                 }
                 
+                // Check if game is live (not completed and has time)
+                const isLive = !game.completed && (game.status.includes('PM') || game.status.includes('AM') || game.status.includes('ET') || game.status.includes('PT'));
+                const statusClass = isLive ? 'live' : '';
+                
                 div.innerHTML = `
                     <div class="matchup">
                         <div class="team" onclick="location.href='team.html?id=${game.away.id}&color=${encodeURIComponent(game.away.color)}&name=${game.away.name}'">
@@ -86,9 +115,9 @@
                             <div class="team-name">${game.away.name}</div>
                             <div class="record">${game.away.record}</div>
                         </div>
-                        <div class="score-board">
+                        <div class="score-board" onclick="location.href='game.html?id=${game.id}&homeColor=${encodeURIComponent(game.home.color)}&awayColor=${encodeURIComponent(game.away.color)}'">
                             <span class="score">${game.away.score}-${game.home.score}</span>
-                            <div class="status">${game.status}</div>
+                            <div class="status ${statusClass}">${game.status}</div>
                         </div>
                         <div class="team" onclick="location.href='team.html?id=${game.home.id}&color=${encodeURIComponent(game.home.color)}&name=${game.home.name}'">
                             <img src="${game.home.logo}">
