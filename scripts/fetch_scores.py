@@ -2,6 +2,7 @@ import requests
 import json
 import os
 import time
+from pathlib import Path
 from datetime import datetime, timedelta
 
 # Window for the main scoreboard (keep small for speed)
@@ -23,6 +24,13 @@ def get_date_str(offset):
 def pretty_date(offset):
     d = datetime.now() + timedelta(days=offset)
     return d.strftime('%A, %b %d')
+
+ROOT_DIR = Path(__file__).resolve().parent.parent
+DATA_DIR = ROOT_DIR / "data"
+TEAMS_DIR = DATA_DIR / "teams"
+
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+TEAMS_DIR.mkdir(parents=True, exist_ok=True)
 
 all_data = {}
 teams_to_fetch = set() # Stores unique (id, sport, league_slug)
@@ -84,14 +92,24 @@ for offset in range(-DAYS_BACK, DAYS_FORWARD + 1):
 
     all_data[date_str] = daily_games
 
-# Save Main Scoreboard
-with open('../data/scores.json', 'w') as f:
-    json.dump(all_data, f)
+# Save Main Scoreboard (preserve older dates)
+scores_path = DATA_DIR / 'scores.json'
+old_data = {}
+if scores_path.exists():
+    try:
+        with scores_path.open() as f:
+            old_data = json.load(f)
+    except Exception:
+        old_data = {}
+
+merged = dict(old_data)
+merged.update(all_data)  # overwrite only the dates we just fetched
+
+with scores_path.open('w') as f:
+    json.dump(merged, f)
 
 # 2. FETCH INDIVIDUAL TEAM HISTORIES (The Fix for CORS)
 print(f"--- Fetching History for {len(teams_to_fetch)} Teams ---")
-if not os.path.exists("../data/teams"):
-    os.makedirs("../data/teams")
 
 for (team_id, sport, league_slug) in teams_to_fetch:
     try:
@@ -100,7 +118,8 @@ for (team_id, sport, league_slug) in teams_to_fetch:
         data = requests.get(url).json()
         
         # Save to data/teams/TEAM_ID.json
-        with open(f"../data/teams/{team_id}.json", 'w') as f:
+        team_path = TEAMS_DIR / f"{team_id}.json"
+        with team_path.open('w') as f:
             json.dump(data, f)
             
     except Exception as e:
