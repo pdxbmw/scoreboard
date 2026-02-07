@@ -163,9 +163,12 @@
                 // Get opponent record from their team data
                 const opponentRecord = await getOpponentRecord(opponent.team.id);
 
+                const oppColor = opponent.team?.color ? `#${opponent.team.color}` : '#333';
+                const oppName = opponent.team?.displayName || opponent.team?.shortDisplayName || opponent.team?.abbreviation || 'Team';
+                
                 div.innerHTML = `
                     <span class="game-date">${dateStr}</span>
-                    <div class="opponent">
+                    <div class="opponent" onclick="location.href='team.html?id=${opponent.team.id}&color=${encodeURIComponent(oppColor)}&name=${encodeURIComponent(oppName)}'" style="cursor:pointer;">
                         <img src="${opponent.team.logos?.[0]?.href || ''}">
                         <div>
                             <span class="opponent-name">${opponent.team.abbreviation || opponent.team.shortDisplayName || 'Unknown'}</span>
