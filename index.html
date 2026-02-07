@@ -29,6 +29,7 @@
         .team { display: flex; flex-direction: column; align-items: center; flex: 1; cursor: pointer; } 
         .team img { width: 55px; height: 55px; object-fit: contain; }
         .team-name { font-size: 0.85rem; margin-top: 5px; text-align: center; }
+        .rank-badge { display: inline-block; background: transparent; color: #999; border-radius: 4px; padding: 0 2px; font-size: 0.7rem; font-weight: 500; margin-right: 2px; vertical-align: baseline; letter-spacing: 0; }
         .record { font-size: 0.75rem; color: #888; }
         .score-board { text-align: center; flex: 0 0 85px; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 6px; }
         .score { font-size: 1.8rem; font-weight: 600; color: #333; white-space: nowrap; }
@@ -67,6 +68,11 @@
             wnba: { label: 'WNBA', color: '#e46b0c' },
             ncaa_mb: { label: 'NCAA M', color: '#006847' },
             ncaa_wb: { label: 'NCAA W', color: '#7d0068' },
+        };
+
+        const normalizeRank = (r) => {
+            const n = Number(r);
+            return Number.isFinite(n) && n > 0 && n <= 50 ? n : null;
         };
 
         const ESPN_ENDPOINTS = {
@@ -210,19 +216,19 @@
                             start_local: startLocal,
                             home: {
                                 id: home.team?.id,
-                                name: home.team?.shortDisplayName || home.team?.displayName,
-                                score: home.score,
+                                name: home.team?.displayName,
                                 logo: home.team?.logos?.[0]?.href || home.team?.logo || '',
                                 color: "#" + (home.team?.color || '333333'),
-                                record: home.records?.[0]?.summary || '0-0'
+                                record: home.records?.[0]?.summary || '0-0',
+                                rank: normalizeRank(home.curatedRank?.current || home.rank)
                             },
                             away: {
                                 id: away.team?.id,
-                                name: away.team?.shortDisplayName || away.team?.displayName,
-                                score: away.score,
+                                name: away.team?.displayName,
                                 logo: away.team?.logos?.[0]?.href || away.team?.logo || '',
                                 color: "#" + (away.team?.color || '333333'),
-                                record: away.records?.[0]?.summary || '0-0'
+                                record: away.records?.[0]?.summary || '0-0',
+                                rank: normalizeRank(away.curatedRank?.current || away.rank)
                             }
                         });
                     }
@@ -326,6 +332,14 @@
                 
                 // Check if game is live and extract time
                 const isLive = isLiveGame(game);
+
+                const awayScoreVal = game.away?.score ?? game.away?.score?.value ?? '0';
+                const homeScoreVal = game.home?.score ?? game.home?.score?.value ?? '0';
+                const awayScoreStr = String(awayScoreVal);
+                const homeScoreStr = String(homeScoreVal);
+
+                const awayRank = normalizeRank(game.away?.rank);
+                const homeRank = normalizeRank(game.home?.rank);
                 
                 let displayStatus = game.status;
                 if (isLive && /\d+:\d+\s*-\s*\d+(st|nd|rd|th)/.test(game.status)) {
@@ -352,17 +366,17 @@
                     <div class="matchup">
                         <div class="team">
                             <img src="${game.away.logo}">
-                            <div class="team-name">${game.away.name}</div>
+                            <div class="team-name">${awayRank ? `<span class='rank-badge'>#${awayRank}</span>` : ''}${game.away.name}</div>
                             <div class="record">${game.away.record}</div>
                         </div>
                         <div class="score-board">
                             <span class="league-pill" style="border-color:${leagueMeta.color}; background:${badgeBg}"><span class="league-dot" style="background:${leagueMeta.color}"></span>${leagueMeta.label}</span>
-                            <span class="${game.away.score === '0' && game.home.score === '0' ? 'score at-symbol' : 'score'}">${game.away.score === '0' && game.home.score === '0' ? '@' : `${game.away.score}-${game.home.score}`}</span>
+                            <span class="${awayScoreStr === '0' && homeScoreStr === '0' ? 'score at-symbol' : 'score'}">${awayScoreStr === '0' && homeScoreStr === '0' ? '@' : `${awayScoreStr}-${homeScoreStr}`}</span>
                             <div class="status ${isLive ? 'live' : ''}">${displayStatus}</div>
                         </div>
                         <div class="team">
                             <img src="${game.home.logo}">
-                            <div class="team-name">${game.home.name}</div>
+                            <div class="team-name">${homeRank ? `<span class='rank-badge'>#${homeRank}</span>` : ''}${game.home.name}</div>
                             <div class="record">${game.home.record}</div>
                         </div>
                     </div>

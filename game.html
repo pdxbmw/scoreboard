@@ -52,6 +52,7 @@
             font-weight: 600; font-size: 0.9rem;
         }
         .status-display.live { background: #ff4444; color: white; }
+        .rank-badge { display: inline-block; background: transparent; color: #999; border-radius: 4px; padding: 0 2px; font-size: 0.7rem; font-weight: 500; margin-right: 2px; vertical-align: baseline; letter-spacing: 0; }
         
         .teams-score {
             display: grid; grid-template-columns: 1fr auto 1fr; gap: 30px; align-items: center;
@@ -246,6 +247,11 @@
             ncaa_wb: 'https://site.api.espn.com/apis/site/v2/sports/basketball/womens-college-basketball/scoreboard'
         };
 
+        const normalizeRank = (r) => {
+            const n = Number(r);
+            return Number.isFinite(n) && n > 0 && n <= 50 ? n : null;
+        };
+
         function isLiveStatus(status) {
             if (!status) return false;
             const s = status.toLowerCase();
@@ -304,7 +310,8 @@
                                     color: AWAY_COLOR || "#" + (away.team?.color || '333333'),
                                     record: away.records?.[0]?.summary || '0-0',
                                     score: away.score || '0',
-                                    id: away.team?.id
+                                    id: away.team?.id,
+                                    rank: normalizeRank(away.curatedRank?.current || away.rank)
                                 },
                                 home: {
                                     name: home.team?.displayName,
@@ -312,7 +319,8 @@
                                     color: HOME_COLOR || "#" + (home.team?.color || '333333'),
                                     record: home.records?.[0]?.summary || '0-0',
                                     score: home.score || '0',
-                                    id: home.team?.id
+                                    id: home.team?.id,
+                                    rank: normalizeRank(home.curatedRank?.current || home.rank)
                                 }
                             };
                             console.log('✅ Detailed game data fetched from ESPN API');
@@ -421,7 +429,10 @@
                 awayLogo.setAttribute('data-team-color', AWAY_COLOR);
                 console.log('🔴 Away team:', game.away.name, 'Color:', AWAY_COLOR);
             }
-            if (awayName) awayName.innerText = game.away.name;
+            const awayRank = normalizeRank(game.away?.rank);
+            const homeRank = normalizeRank(game.home?.rank);
+
+            if (awayName) awayName.innerHTML = `${awayRank ? `<span class="rank-badge">#${awayRank}</span>` : ''}${game.away.name}`;
             if (awayRecord) awayRecord.innerText = game.away.record;
             if (awayScore) {
                 awayScore.innerText = game.away.score;
@@ -436,7 +447,7 @@
                 homeLogo.setAttribute('data-team-color', HOME_COLOR);
                 console.log('🔴 Home team:', game.home.name, 'Color:', HOME_COLOR);
             }
-            if (homeName) homeName.innerText = game.home.name;
+            if (homeName) homeName.innerHTML = `${homeRank ? `<span class="rank-badge">#${homeRank}</span>` : ''}${game.home.name}`;
             if (homeRecord) homeRecord.innerText = game.home.record;
             if (homeScore) {
                 homeScore.innerText = game.home.score;
