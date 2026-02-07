@@ -15,7 +15,7 @@
         .filters { display: flex; gap: 8px; overflow-x: auto; padding: 15px 15px 5px 15px; -webkit-overflow-scrolling: touch; justify-content: center; flex-wrap: wrap; }
         .filter-btn { background: white; border: 1px solid #ddd; border-radius: 20px; padding: 8px 14px; font-weight: 600; font-size: 0.9rem; cursor: pointer; white-space: nowrap; color: #555; }
         .filter-btn.active { background: #333; color: white; border-color: #333; }
-        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 15px; padding: 20px; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 15px; padding: 20px; max-width: 1400px; margin: 0 auto; }
         .card { background: var(--card-bg); border-radius: 24px; padding: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); display: flex; flex-direction: column; align-items: center; cursor: pointer; }
         .card.completed { opacity: 0.7; }
         .card.completed .score { color: #666; }
