@@ -9,8 +9,8 @@
     :root { --bg:#f4f7f6; --card:#fff; }
     * { box-sizing: border-box; }
     body { margin:0; font-family:'Fredoka', sans-serif; background:var(--bg); color:#222; padding-bottom:40px; }
-    header { position:sticky; top:0; background:#fff; padding:14px 16px; box-shadow:0 2px 10px rgba(0,0,0,0.08); z-index:10; display:flex; align-items:center; gap:12px; }
-    header a { text-decoration:none; color:#555; font-weight:600; border:1px solid #ddd; padding:6px 12px; border-radius:999px; }
+    header { position:sticky; top:0; background:#fff; padding:14px 16px; box-shadow:0 2px 10px rgba(0,0,0,0.08); z-index:10; display:flex; align-items:center; justify-content:center; }
+    .back { position:absolute; left:16px; text-decoration:none; color:#555; font-weight:600; border:1px solid #ddd; padding:6px 12px; border-radius:999px; }
     h1 { margin:0; font-size:1.2rem; }
     .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:14px; padding:16px; max-width:1200px; margin:0 auto; }
     .card { background:var(--card); border-radius:16px; padding:14px; box-shadow:0 4px 12px rgba(0,0,0,0.06); }
@@ -23,13 +23,18 @@
     .rank { width:36px; color:#999; }
     .record { font-variant-numeric:tabular-nums; }
     .gb { text-align:right; color:#777; width:60px; }
+    .logo { width:22px; height:22px; object-fit:contain; vertical-align:middle; margin-right:6px; }
+    .filters { display:flex; gap:8px; padding:12px 16px 4px; flex-wrap:wrap; justify-content:center; }
+    .filter-btn { background:#fff; border:1px solid #e0e0e0; border-radius:999px; padding:6px 12px; font-weight:600; font-size:0.9rem; cursor:pointer; color:#555; }
+    .filter-btn.active { background:#111; color:#fff; border-color:#111; }
   </style>
 </head>
 <body>
   <header>
-    <a href="index.html">← Back</a>
+    <a class="back" href="index.html">← Back</a>
     <h1>Standings</h1>
   </header>
+  <div class="filters" id="filters"></div>
   <div class="grid" id="standings">Loading...</div>
 
   <script>
@@ -40,6 +45,9 @@
     ];
 
     const standingsContainer = document.getElementById('standings');
+    const filtersEl = document.getElementById('filters');
+    let standingsData = {};
+    let currentFilter = 'all';
 
     const statValue = (stats, name) => {
       const s = stats?.find(x => x.name === name);
@@ -76,13 +84,13 @@
           const losses = statValue(stats, 'losses') || '0';
           const gb = statValue(stats, 'gamesBehind') || statValue(stats, 'gamesBack') || '-';
           const rk = rankValue(stats);
-          return { name: team?.displayName || team?.name || 'Team', record:`${wins}-${losses}`, gb, rank: rk ?? idx + 1 };
+          return { name: team?.displayName || team?.name || 'Team', record:`${wins}-${losses}`, gb, rank: rk ?? idx + 1, logo: team?.logos?.[0]?.href || '' };
         });
 
         const tableRows = rows.map(r => `
           <tr>
             <td class="rank">${r.rank ? '#' + r.rank : ''}</td>
-            <td>${r.name}</td>
+            <td>${r.logo ? `<img class="logo" src="${r.logo}">` : ''}${r.name}</td>
             <td class="record">${r.record}</td>
             <td class="gb">${r.gb}</td>
           </tr>
@@ -101,14 +109,32 @@
       return cards;
     }
 
-    async function loadStandings() {
+    function renderFilters() {
+      const options = [{key:'all', label:'All'}, ...LEAGUES];
+      filtersEl.innerHTML = options.map(opt => `<button class="filter-btn ${opt.key===currentFilter?'active':''}" data-key="${opt.key}">${opt.label}</button>`).join('');
+      filtersEl.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.onclick = () => { currentFilter = btn.dataset.key; renderStandings(); };
+      });
+    }
+
+    function renderStandings() {
       const cards = [];
-      for (const lg of LEAGUES) {
-        const data = await fetchLeague(lg);
+      const leagues = currentFilter === 'all' ? LEAGUES : LEAGUES.filter(l => l.key === currentFilter);
+      leagues.forEach(lg => {
+        const data = standingsData[lg.key];
+        if (!data) return;
         const htmlCards = renderLeague(lg, data);
         if (htmlCards && htmlCards.length) cards.push(...htmlCards);
-      }
+      });
       standingsContainer.innerHTML = cards.join('') || '<p align="center" style="color:#777;">No standings available.</p>';
+    }
+
+    async function loadStandings() {
+      for (const lg of LEAGUES) {
+        standingsData[lg.key] = await fetchLeague(lg);
+      }
+      renderFilters();
+      renderStandings();
     }
 
     loadStandings();
