@@ -25,8 +25,11 @@
     .gb { text-align:right; color:#777; width:60px; }
     .logo { width:22px; height:22px; object-fit:contain; vertical-align:middle; margin-right:6px; }
     .filters { display:flex; gap:8px; padding:12px 16px 4px; flex-wrap:wrap; justify-content:center; }
-    .filter-btn { background:#fff; border:1px solid #e0e0e0; border-radius:999px; padding:6px 12px; font-weight:600; font-size:0.9rem; cursor:pointer; color:#555; }
-    .filter-btn.active { background:#111; color:#fff; border-color:#111; }
+    .filter-btn { background:#fff; border:1px solid var(--dot,#e0e0e0); border-radius:999px; padding:6px 12px; font-weight:600; font-size:0.9rem; cursor:pointer; color:var(--dot,#555); display:inline-flex; align-items:center; gap:6px; }
+    .filter-btn .dot { width:8px; height:8px; border-radius:50%; background:var(--dot,#555); display:inline-block; }
+    .filter-btn.no-dot .dot { display:none; }
+    .filter-btn.active { background:var(--dot,#111); border-color:var(--dot,#111); color:#fff; }
+    .filter-btn.active .dot { background:#fff; }
   </style>
 </head>
 <body>
@@ -110,10 +113,18 @@
     }
 
     function renderFilters() {
-      const options = [{key:'all', label:'All'}, ...LEAGUES];
-      filtersEl.innerHTML = options.map(opt => `<button class="filter-btn ${opt.key===currentFilter?'active':''}" data-key="${opt.key}">${opt.label}</button>`).join('');
+      const options = [{key:'all', label:'All', color:'#555', dot:false}, ...LEAGUES.map(l => ({...l, dot:true}))];
+      filtersEl.innerHTML = options.map(opt => {
+        const dot = opt.dot ? `<span class="dot"></span>` : '';
+        return `<button class="filter-btn ${opt.key===currentFilter?'active':''} ${opt.dot?'':'no-dot'}" data-key="${opt.key}" style="--dot:${opt.color || '#555'}">${dot}${opt.label}</button>`;
+      }).join('');
       filtersEl.querySelectorAll('.filter-btn').forEach(btn => {
-        btn.onclick = () => { currentFilter = btn.dataset.key; renderStandings(); };
+        btn.onclick = () => {
+          currentFilter = btn.dataset.key;
+          filtersEl.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          renderStandings();
+        };
       });
     }
 
