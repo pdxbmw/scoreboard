@@ -35,6 +35,15 @@ TEAMS_DIR.mkdir(parents=True, exist_ok=True)
 all_data = {}
 teams_to_fetch = set() # Stores unique (id, sport, league_slug)
 
+def extract_rank(comp):
+    try:
+        rk = comp.get('curatedRank', {}).get('current')
+        if rk is None:
+            rk = comp.get('rank')
+        return rk
+    except Exception:
+        return None
+
 # 1. FETCH MAIN SCOREBOARD
 print("--- Fetching Scoreboard ---")
 for offset in range(-DAYS_BACK, DAYS_FORWARD + 1):
@@ -75,7 +84,8 @@ for offset in range(-DAYS_BACK, DAYS_FORWARD + 1):
                         "score": home['score'],
                         "logo": home['team'].get('logo', ''),
                         "color": f"#{home['team'].get('color', '333333')}",
-                        "record": home.get('records', [{'summary':'0-0'}])[0]['summary']
+                        "record": home.get('records', [{'summary':'0-0'}])[0]['summary'],
+                        "rank": extract_rank(home)
                     },
                     "away": {
                         "id": away['team']['id'],
@@ -83,7 +93,8 @@ for offset in range(-DAYS_BACK, DAYS_FORWARD + 1):
                         "score": away['score'],
                         "logo": away['team'].get('logo', ''),
                         "color": f"#{away['team'].get('color', '333333')}",
-                        "record": away.get('records', [{'summary':'0-0'}])[0]['summary']
+                        "record": away.get('records', [{'summary':'0-0'}])[0]['summary'],
+                        "rank": extract_rank(away)
                     }
                 }
                 daily_games.append(game_data)
