@@ -7,11 +7,12 @@
     <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600&display=swap" rel="stylesheet">
     <style>
         :root { --bg: #f4f7f6; --card-bg: #ffffff; --primary: #333; }
-        body { font-family: 'Fredoka', sans-serif; background: var(--bg); margin: 0; padding-bottom: 40px; }
-        .date-nav { background: #fff; padding: 10px; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 10px rgba(0,0,0,0.1); display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-        .nav-btn { background: #f0f0f0; border: none; padding: 8px 16px; border-radius: 20px; font-weight: bold; font-size: 1.2rem; cursor: pointer; }
+        body { font-family: 'Fredoka', sans-serif; background: var(--bg); margin: 0; padding-bottom: 120px; min-height: 100vh; display: flex; flex-direction: column; }
+        main { flex: 1 0 auto; }
+        .date-nav { background: #fff; padding: 0 10px; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 10px rgba(0,0,0,0.1); display: flex; justify-content: space-between; align-items: stretch; gap: 8px; min-height: 72px; }
+        .nav-btn { background: #f0f0f0; border: none; padding: 0 16px; font-weight: bold; font-size: 1.2rem; cursor: pointer; min-width: 44px; display: inline-flex; align-items: center; justify-content: center; height: auto; align-self: stretch; border-radius: 0; }
         .nav-btn:hover { background: #e0e0e0; }
-        .current-date { font-size: 1.1rem; font-weight: 600; color: #333; }
+        .current-date { font-size: 1.15rem; font-weight: 600; color: #333; display: inline-flex; align-items: center; padding: 0 6px; }
         .filters { display: flex; gap: 8px; overflow-x: auto; padding: 15px 15px 5px 15px; -webkit-overflow-scrolling: touch; justify-content: center; flex-wrap: wrap; }
         .filter-btn { background: #fff; border: 1px solid var(--dot); border-radius: 999px; padding: 8px 12px; font-weight: 600; font-size: 0.9rem; cursor: pointer; white-space: nowrap; color: var(--dot); display: inline-flex; align-items: center; gap: 6px; --dot:#555; }
         .filter-btn .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--dot); display: inline-block; }
@@ -40,6 +41,10 @@
         .live { background: #ff4444; color: white; animation: pulse 2s infinite; }
         .live-text { color: #fff; font-size: 0.85rem; font-weight: bold; }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
+        .bottom-nav { position: fixed; left: 0; right: 0; bottom: 0; width: 100%; background: #fff; box-shadow: 0 -2px 10px rgba(0,0,0,0.08); padding: 10px; display: flex; gap: 10px; z-index: 90; }
+        .bottom-nav a { flex: 1; text-decoration: none; text-align: center; padding: 12px; border-radius: 12px; font-weight: 700; }
+        .bottom-nav a.primary { background: #111; color: #fff; }
+        .bottom-nav a.secondary { background: #f0f0f0; color: #111; }
     </style>
 </head>
 <body>
@@ -48,16 +53,23 @@
         <div class="current-date" id="dateDisplay">Today</div>
         <button class="nav-btn" onclick="changeDate(1)">→</button>
     </div>
-    <div class="filters">
-        <button class="filter-btn no-dot active" onclick="filter('ALL', this)">All</button>
-        <button class="filter-btn" style="--dot:#0b5f8a" onclick="filter('nfl', this)"><span class="dot"></span>NFL</button>
-        <button class="filter-btn" style="--dot:#8b3f0a" onclick="filter('ncaa_fb', this)"><span class="dot"></span>NCAA FB</button>
-        <button class="filter-btn" style="--dot:#1d428a" onclick="filter('nba', this)"><span class="dot"></span>NBA</button>
-        <button class="filter-btn" style="--dot:#e46b0c" onclick="filter('wnba', this)"><span class="dot"></span>WNBA</button>
-        <button class="filter-btn" style="--dot:#006847" onclick="filter('ncaa_mb', this)"><span class="dot"></span>NCAA Men</button>
-        <button class="filter-btn" style="--dot:#7d0068" onclick="filter('ncaa_wb', this)"><span class="dot"></span>NCAA Women</button>
+    <main>
+        <div class="filters">
+            <button class="filter-btn no-dot active" onclick="filter('ALL', this)">All</button>
+            <button class="filter-btn" style="--dot:#0b5f8a" onclick="filter('nfl', this)"><span class="dot"></span>NFL</button>
+            <button class="filter-btn" style="--dot:#8b3f0a" onclick="filter('ncaa_fb', this)"><span class="dot"></span>NCAA FB</button>
+            <button class="filter-btn" style="--dot:#1d428a" onclick="filter('nba', this)"><span class="dot"></span>NBA</button>
+            <button class="filter-btn" style="--dot:#e46b0c" onclick="filter('wnba', this)"><span class="dot"></span>WNBA</button>
+            <button class="filter-btn" style="--dot:#006847" onclick="filter('ncaa_mb', this)"><span class="dot"></span>NCAA Men</button>
+            <button class="filter-btn" style="--dot:#7d0068" onclick="filter('ncaa_wb', this)"><span class="dot"></span>NCAA Women</button>
+        </div>
+        <div class="grid" id="app">Loading...</div>
+    </main>
+
+    <div class="bottom-nav">
+        <a class="primary" href="index.html">Scoreboard</a>
+        <a class="secondary" href="standings.html">Standings</a>
     </div>
-    <div class="grid" id="app">Loading...</div>
     <script>
         let allData = {}, dateKeys = [], currentIndex = 0, currentFilter = 'ALL', autoRefreshInterval;
 
@@ -205,13 +217,15 @@
                         const home = comp.competitors?.[0];
                         const away = comp.competitors?.[1];
                         if (!home || !away) continue;
+                        const homeScoreVal = home.score ?? home.score?.value ?? home.linescores?.[0]?.value ?? 0;
+                        const awayScoreVal = away.score ?? away.score?.value ?? away.linescores?.[0]?.value ?? 0;
                         const startLocal = new Date(event.date).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
                         parsedGames.push({
                             id: event.id,
                             league: LEAGUE_META[leagueKey]?.label || leagueKey.toUpperCase(),
                             league_key: leagueKey,
                             status,
-                            completed: comp.status?.type?.completed || false,
+                            completed: comp.status?.type?.completed || /final/i.test(status),
                             date: event.date,
                             start_local: startLocal,
                             home: {
@@ -220,7 +234,8 @@
                                 logo: home.team?.logos?.[0]?.href || home.team?.logo || '',
                                 color: "#" + (home.team?.color || '333333'),
                                 record: home.records?.[0]?.summary || '0-0',
-                                rank: normalizeRank(home.curatedRank?.current || home.rank)
+                                rank: normalizeRank(home.curatedRank?.current || home.rank),
+                                score: String(homeScoreVal)
                             },
                             away: {
                                 id: away.team?.id,
@@ -228,7 +243,8 @@
                                 logo: away.team?.logos?.[0]?.href || away.team?.logo || '',
                                 color: "#" + (away.team?.color || '333333'),
                                 record: away.records?.[0]?.summary || '0-0',
-                                rank: normalizeRank(away.curatedRank?.current || away.rank)
+                                rank: normalizeRank(away.curatedRank?.current || away.rank),
+                                score: String(awayScoreVal)
                             }
                         });
                     }

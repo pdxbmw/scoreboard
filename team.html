@@ -59,10 +59,21 @@
         const TEAM_ID = params.get('id');
         const COLOR = decodeURIComponent(params.get('color'));
         const NAME = params.get('name');
+        const LEAGUE = params.get('league');
 
         // Apply Theme
         document.getElementById('header').style.setProperty('--team-color', COLOR);
         document.getElementById('teamName').innerText = NAME || "Team Schedule";
+
+        let refreshTimer;
+
+        const formatLocal = (iso) => {
+            const d = new Date(iso);
+            if (isNaN(d.getTime())) return '';
+            const dateStr = `${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}, ${d.getFullYear()}`;
+            const timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            return { dateStr, timeStr };
+        };
 
         async function loadHistory() {
             // FIX: Load from our LOCAL folder, not ESPN directly
@@ -76,7 +87,11 @@
                 
                 const data = await res.json();
                 console.log('Data keys:', Object.keys(data));
-                const events = data.events || [];
+                const events = (data.events || []).filter(ev => {
+                    const comp = ev.competitions?.[0];
+                    const hasTeam = comp?.competitors?.some(c => c.team?.id === TEAM_ID);
+                    return hasTeam;
+                });
                 console.log('Events count:', events.length);
                 
                 // Extract team record from team data
@@ -85,6 +100,10 @@
                 document.getElementById('teamRecord').innerText = teamRecord;
                 
                 renderGames(events);
+
+                // set up auto-refresh to keep live scores current
+                if (refreshTimer) clearTimeout(refreshTimer);
+                refreshTimer = setTimeout(loadHistory, 20000);
             } catch(e) {
                 console.error('Error loading team data:', e);
                 document.getElementById('games').innerHTML = `
@@ -136,8 +155,7 @@
                     continue;
                 }
                 
-                const dateObj = new Date(event.date);
-                const dateStr = `${dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}, ${dateObj.getFullYear()}`;
+                const { dateStr, timeStr } = formatLocal(event.date);
                 
                 const div = document.createElement('div');
                 div.className = 'game-row';
@@ -155,8 +173,7 @@
                         ${isWin ? 'W' : 'L'} ${myScore}-${opScore}
                     </span>`;
                 } else {
-                    // Show game time for upcoming games
-                    const timeStr = dateObj.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                    // Show game time for upcoming games (localized)
                     resultHTML = `<span class="result future">${timeStr}</span>`;
                 }
 
