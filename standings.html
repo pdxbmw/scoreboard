@@ -13,9 +13,6 @@
     header { position:sticky; top:0; background:#fff; padding:0 10px; min-height:72px; box-shadow:0 2px 10px rgba(0,0,0,0.08); z-index:10; display:flex; align-items:center; justify-content:center; gap:10px; }
     .back { position:absolute; left:16px; text-decoration:none; color:#555; font-weight:600; border:1px solid #ddd; padding:8px 12px; border-radius:0; height:100%; display:inline-flex; align-items:center; }
     h1 { margin:0; font-size:1.2rem; }
-    .nav-links { position:absolute; right:16px; display:flex; gap:8px; align-items:center; font-weight:600; }
-    .nav-links a { text-decoration:none; color:#666; padding:10px 12px; border-radius:8px; }
-    .nav-links .active { color:#111; font-weight:700; background:#f0f0f0; }
     .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:14px; padding:16px; max-width:1200px; margin:0 auto; }
     .card { background:var(--card); border-radius:16px; padding:14px; box-shadow:0 4px 12px rgba(0,0,0,0.06); }
     .card h2 { margin:0 0 8px 0; font-size:1rem; display:flex; align-items:center; gap:8px; }
@@ -46,10 +43,6 @@
   <header>
     <a class="back" href="index.html">← Back</a>
     <h1>Standings</h1>
-    <div class="nav-links">
-      <a href="index.html">Scoreboard</a>
-      <a class="active" href="standings.html">Standings</a>
-    </div>
   </header>
   <main>
     <div class="filters" id="filters"></div>
@@ -57,8 +50,8 @@
   </main>
 
   <div class="bottom-nav">
-    <a class="primary" href="index.html">Scoreboard</a>
-    <a class="secondary" href="standings.html">Standings</a>
+    <a class="secondary" href="index.html" id="nav-scoreboard">Scoreboard</a>
+    <a class="primary" href="standings.html" id="nav-standings">Standings</a>
   </div>
 
   <script>
@@ -184,6 +177,15 @@
       }
       renderFilters();
       renderStandings();
+    }
+
+    const sb = document.getElementById('nav-scoreboard');
+    const st = document.getElementById('nav-standings');
+    if (sb && st) {
+      st.classList.add('primary');
+      st.classList.remove('secondary');
+      sb.classList.add('secondary');
+      sb.classList.remove('primary');
     }
 
     loadStandings();

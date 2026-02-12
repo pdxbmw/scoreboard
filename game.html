@@ -246,11 +246,25 @@
             ncaa_mb: 'https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/scoreboard',
             ncaa_wb: 'https://site.api.espn.com/apis/site/v2/sports/basketball/womens-college-basketball/scoreboard'
         };
+        const LEAGUE_SUMMARY = {
+            nba: 'https://site.api.espn.com/apis/site/v2/sports/basketball/nba/summary?event=',
+            ncaa_mb: 'https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/summary?event=',
+            ncaa_wb: 'https://site.api.espn.com/apis/site/v2/sports/basketball/womens-college-basketball/summary?event='
+        };
 
         const normalizeRank = (r) => {
             const n = Number(r);
             return Number.isFinite(n) && n > 0 && n <= 50 ? n : null;
         };
+
+        function formatLocalDateTime(iso) {
+            const d = new Date(iso);
+            if (isNaN(d.getTime())) return null;
+            return {
+                date: d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }),
+                time: d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+            };
+        }
 
         function isLiveStatus(status) {
             if (!status) return false;
@@ -273,7 +287,58 @@
                 console.log('🔄 Fetching detailed game data from ESPN API');
                 let gameData = null;
                 
-                // First try to get data from ESPN API
+                // First try summary endpoint for exact game
+                try {
+                    const summaryUrl = (LEAGUE_SUMMARY[LEAGUE_KEY] || LEAGUE_SUMMARY.nba) + GAME_ID;
+                    console.log('Fetching summary URL:', summaryUrl);
+                    const summaryRes = await fetch(summaryUrl);
+                    if (summaryRes.ok) {
+                        const summary = await summaryRes.json();
+                        const comp = summary?.header?.competitions?.[0];
+                        if (comp) {
+                            const home = comp.competitors?.find(c => c.homeAway === 'home');
+                            const away = comp.competitors?.find(c => c.homeAway === 'away');
+                            const status = comp.status?.type?.shortDetail || comp.status?.type?.detail || '';
+                            gameData = {
+                                id: comp.id || GAME_ID,
+                                league: summary?.header?.leagues?.[0]?.name || (LEAGUE_KEY === 'ncaa_mb' ? 'NCAA Men' : LEAGUE_KEY === 'ncaa_wb' ? 'NCAA Women' : 'NBA'),
+                                league_key: LEAGUE_KEY,
+                                sport: 'basketball',
+                                league_slug: LEAGUE_KEY,
+                                date: comp.date,
+                                date_label: new Date(comp.date).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' }),
+                                status,
+                                completed: comp.status?.type?.completed || false,
+                                fullCompetition: comp,
+                                away: {
+                                    name: away?.team?.displayName,
+                                    logo: away?.team?.logos?.[0]?.href || away?.team?.logo || '',
+                                    color: AWAY_COLOR || "#" + (away?.team?.color || '333333'),
+                                    record: away?.records?.[0]?.summary || '0-0',
+                                    score: away?.score || '0',
+                                    id: away?.team?.id,
+                                    rank: normalizeRank(away?.curatedRank?.current || away?.rank)
+                                },
+                                home: {
+                                    name: home?.team?.displayName,
+                                    logo: home?.team?.logos?.[0]?.href || home?.team?.logo || '',
+                                    color: HOME_COLOR || "#" + (home?.team?.color || '333333'),
+                                    record: home?.records?.[0]?.summary || '0-0',
+                                    score: home?.score || '0',
+                                    id: home?.team?.id,
+                                    rank: normalizeRank(home?.curatedRank?.current || home?.rank)
+                                }
+                            };
+                            const local = formatLocalDateTime(comp.date);
+                            if (local?.time) gameData.start_local = local.time;
+                            console.log('✅ Detailed game data fetched from summary API');
+                        }
+                    }
+                } catch (e) {
+                    console.log('⚠️ Summary fetch failed, will try scoreboard:', e);
+                }
+
+                // If summary didn't return, try to get data from ESPN scoreboard
                 try {
                     const gameUrl = LEAGUE_ENDPOINTS[LEAGUE_KEY] || LEAGUE_ENDPOINTS.nba;
                     console.log('Fetching from URL:', gameUrl);
@@ -323,6 +388,8 @@
                                     rank: normalizeRank(home.curatedRank?.current || home.rank)
                                 }
                             };
+                            const local = formatLocalDateTime(event.date);
+                            if (local?.time) gameData.start_local = local.time;
                             console.log('✅ Detailed game data fetched from ESPN API');
                             break;
                         }
@@ -348,8 +415,10 @@
                                     gameData = {
                                         ...foundGame,
                                         league: foundGame.league || 'NBA',
-                                        date_label: foundGame.date_label || new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' })
+                                        date_label: foundGame.date_label || new Date(foundGame.date || Date.now()).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' })
                                     };
+                                    const local = formatLocalDateTime(foundGame.date);
+                                    if (local?.time) gameData.start_local = local.time;
                                     break;
                                 }
                             }
@@ -411,7 +480,8 @@
             const gameDate = document.getElementById('gameDate');
             if (gameTitle) gameTitle.innerText = `${game.away.name} @ ${game.home.name}`;
             if (gameLeague) gameLeague.innerText = game.league || 'NBA';
-            if (gameDate) gameDate.innerText = game.date_label || new Date().toDateString();
+            const localDT = formatLocalDateTime(game.date);
+            if (gameDate) gameDate.innerText = (localDT && localDT.date) || game.date_label || new Date().toDateString();
             
             // Update team information
             const awayLogo = document.getElementById('awayLogo');
@@ -493,7 +563,17 @@
                 if (homeScore) homeScore.classList.remove('live');
                 console.log('Game is completed');
             } else {
+                // Scheduled: show local time only (strip source tz/date strings)
+                const localTime = (localDT && localDT.time) || game.start_local;
+                if (localTime) {
+                    displayStatus = localTime;
+                } else {
+                    const timeOnly = (game.status || '').match(/(\d{1,2}:\d{2}\s*[AP]M)/i);
+                    displayStatus = timeOnly ? timeOnly[1].replace(/\s+/g,' ').trim() : game.status;
+                }
+
                 if (statusEl) statusEl.className = 'status-display';
+                if (statusText) statusText.innerHTML = displayStatus;
                 if (liveIndicator) liveIndicator.style.display = 'none';
                 if (awayScore) awayScore.classList.remove('live');
                 if (homeScore) homeScore.classList.remove('live');

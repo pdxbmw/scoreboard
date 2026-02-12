@@ -67,8 +67,8 @@
     </main>
 
     <div class="bottom-nav">
-        <a class="primary" href="index.html">Scoreboard</a>
-        <a class="secondary" href="standings.html">Standings</a>
+        <a class="primary" href="index.html" id="nav-scoreboard">Scoreboard</a>
+        <a class="secondary" href="standings.html" id="nav-standings">Standings</a>
     </div>
     <script>
         let allData = {}, dateKeys = [], currentIndex = 0, currentFilter = 'ALL', autoRefreshInterval;
@@ -418,6 +418,15 @@
                 window.history.replaceState({}, '', url.toString());
                 render(); 
             }
+        }
+        // set bottom nav active state
+        const sb = document.getElementById('nav-scoreboard');
+        const st = document.getElementById('nav-standings');
+        if (sb && st) {
+            sb.classList.add('primary');
+            sb.classList.remove('secondary');
+            st.classList.add('secondary');
+            st.classList.remove('primary');
         }
         
         init();
