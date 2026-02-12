@@ -67,6 +67,32 @@
 
         let refreshTimer;
 
+        const LEAGUE_PATHS = {
+            nba: 'basketball/nba',
+            ncaa_mb: 'basketball/mens-college-basketball',
+            ncaa_wb: 'basketball/womens-college-basketball'
+        };
+
+        async function fetchTeamFromAPI() {
+            const leaguePath = LEAGUE_PATHS[LEAGUE] || LEAGUE_PATHS.nba;
+            const base = `https://site.api.espn.com/apis/site/v2/sports/${leaguePath}`;
+            try {
+                const [teamRes, scheduleRes] = await Promise.all([
+                    fetch(`${base}/teams/${TEAM_ID}`),
+                    fetch(`${base}/teams/${TEAM_ID}/schedule`)
+                ]);
+                if (!teamRes.ok || !scheduleRes.ok) throw new Error(`HTTP ${teamRes.status}/${scheduleRes.status}`);
+                const teamJson = await teamRes.json();
+                const schedJson = await scheduleRes.json();
+                const teamRecord = teamJson.team?.record?.items?.[0]?.summary || teamJson.team?.recordSummary || '';
+                const events = schedJson?.team?.events || [];
+                return { teamRecord, events };
+            } catch (e) {
+                console.log('API fallback failed:', e);
+                return null;
+            }
+        }
+
         const formatLocal = (iso) => {
             const d = new Date(iso);
             if (isNaN(d.getTime())) return '';
@@ -83,35 +109,56 @@
             try {
                 const res = await fetch(url);
                 console.log('Response status:', res.status);
-                if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-                
-                const data = await res.json();
-                console.log('Data keys:', Object.keys(data));
-                const events = (data.events || []).filter(ev => {
-                    const comp = ev.competitions?.[0];
-                    const hasTeam = comp?.competitors?.some(c => c.team?.id === TEAM_ID);
-                    return hasTeam;
-                });
-                console.log('Events count:', events.length);
-                
-                // Extract team record from team data
-                const teamRecord = data.team?.recordSummary || 'Season Record';
-                console.log('Team record found:', teamRecord);
-                document.getElementById('teamRecord').innerText = teamRecord;
-                
-                renderGames(events);
+                let events = [];
+                let teamRecord = '';
 
-                // set up auto-refresh to keep live scores current
+                if (res.ok) {
+                    const data = await res.json();
+                    console.log('Data keys:', Object.keys(data));
+                    events = (data.events || []).filter(ev => {
+                        const comp = ev.competitions?.[0];
+                        const hasTeam = comp?.competitors?.some(c => c.team?.id === TEAM_ID);
+                        return hasTeam;
+                    });
+                    console.log('Events count:', events.length);
+                    teamRecord = data.team?.recordSummary || '';
+                } else {
+                    throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+                }
+
+                // Fallback to ESPN API if no local data
+                if ((!events || events.length === 0) || !teamRecord) {
+                    console.log('Local data missing or empty, trying API fallback');
+                    const apiData = await fetchTeamFromAPI();
+                    if (apiData) {
+                        events = apiData.events;
+                        teamRecord = apiData.teamRecord || teamRecord;
+                    }
+                }
+
+                document.getElementById('teamRecord').innerText = teamRecord || 'Season Record';
+                renderGames(events || []);
+
+                // set up auto-refresh to keep live scores current when we have any events
                 if (refreshTimer) clearTimeout(refreshTimer);
-                refreshTimer = setTimeout(loadHistory, 20000);
+                if (events && events.length) {
+                    refreshTimer = setTimeout(loadHistory, 20000);
+                }
             } catch(e) {
                 console.error('Error loading team data:', e);
-                document.getElementById('games').innerHTML = `
-                    <p align='center'>
-                        Still updating...<br>
-                        <small>The robot is fetching this team's data.<br>Try again in 2 minutes.</small>
-                        <br><small>Error: ${e.message}</small>
-                    </p>`;
+                const apiData = await fetchTeamFromAPI();
+                if (apiData) {
+                    document.getElementById('teamRecord').innerText = apiData.teamRecord || 'Season Record';
+                    renderGames(apiData.events || []);
+                } else {
+                    const friendlyImg = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='180' viewBox='0 0 220 180'><rect width='220' height='180' rx='24' ry='24' fill='%23f5f7fb'/><circle cx='110' cy='85' r='52' fill='%23fff' stroke='%23d33' stroke-width='4'/><circle cx='90' cy='78' r='7' fill='%23d33'/><circle cx='130' cy='78' r='7' fill='%23d33'/><path d='M82 112c12-10 44-10 56 0' stroke='%23d33' stroke-width='6' fill='none' stroke-linecap='round'/></svg>";
+                    document.getElementById('games').innerHTML = `
+                        <div style='text-align:center; color:#444; font-size:1.05rem; padding:24px;'>
+                            <img src="${friendlyImg}" alt="No games" style="width:180px; max-width:80%; display:block; margin:0 auto 10px auto;" />
+                            <div style="margin-top:8px; font-weight:800;">No games here</div>
+                            <div style="margin-top:4px; font-size:1rem; color:#666;">Try another team.</div>
+                        </div>`;
+                }
             }
         }
 
