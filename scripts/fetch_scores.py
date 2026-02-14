@@ -27,7 +27,7 @@ def pretty_date(offset):
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = ROOT_DIR / "data"
-TEAMS_DIR = DATA_DIR / "teams"
+TEAMS_DIR = DATA_DIR / "teams" / "sports"
 
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 TEAMS_DIR.mkdir(parents=True, exist_ok=True)
@@ -128,8 +128,9 @@ for (team_id, sport, league_slug) in teams_to_fetch:
         url = f"https://site.api.espn.com/apis/site/v2/sports/{sport}/{league_slug}/teams/{team_id}/schedule"
         data = requests.get(url).json()
         
-        # Save to data/teams/TEAM_ID.json
-        team_path = TEAMS_DIR / f"{team_id}.json"
+        # Save to data/teams/sports/{sport}/{league_slug}/{TEAM_ID}.json
+        team_path = TEAMS_DIR / sport / league_slug / f"{team_id}.json"
+        team_path.parent.mkdir(parents=True, exist_ok=True)
         with team_path.open('w') as f:
             json.dump(data, f)
             

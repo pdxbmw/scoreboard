@@ -15,7 +15,7 @@
         }
 
         .header h1 { margin: 10px 0 5px 0; font-size: 2.5rem; }
-        .header-content { display: flex; flex-direction: column; align-items: center; justify-content: center; margin-left: 100px; }
+        .header-content { display: flex; flex-direction: column; align-items: center; justify-content: center; margin: 0 auto; padding-left: 80px; padding-right: 80px; }
         .back-btn { 
             position: absolute; top: 20px; left: 20px; background: rgba(255,255,255,0.2); 
             color: white; border: none; padding: 8px 15px; border-radius: 20px; font-weight: bold; cursor: pointer;
@@ -65,22 +65,28 @@
 
         // Apply Theme
         document.getElementById('header').style.setProperty('--team-color', COLOR);
-        document.getElementById('teamName').innerText = NAME || "Team Schedule";
+        const teamNameEl = document.getElementById('teamName');
+        if (teamNameEl) {
+            // Insert space between rank token (e.g., #3) and name if missing
+            const displayName = NAME || "Team Schedule";
+            const spaced = displayName.replace(/^(#\d+)([^\s#]+)/, '$1 $2');
+            teamNameEl.innerText = spaced;
+        }
         const backBtn = document.querySelector('.back-btn');
         if (backBtn && RETURN_TO) backBtn.setAttribute('href', decodeURIComponent(RETURN_TO));
 
         let refreshTimer;
 
-        const LEAGUE_PATHS = {
-            nba: 'basketball/nba',
-            ncaa_mb: 'basketball/mens-college-basketball',
-            ncaa_wb: 'basketball/womens-college-basketball'
+        const LEAGUE_META = {
+            nba: { sport: 'basketball', slug: 'nba' },
+            ncaa_mb: { sport: 'basketball', slug: 'mens-college-basketball' },
+            ncaa_wb: { sport: 'basketball', slug: 'womens-college-basketball' }
         };
 
         async function resolveTeamIdByName(force = false) {
             if (!NAME) return;
             if (TEAM_ID && !force) return;
-            const leaguePath = LEAGUE_PATHS[LEAGUE] || LEAGUE_PATHS.nba;
+            const leaguePath = LEAGUE_META[LEAGUE]?.slug ? `${LEAGUE_META[LEAGUE].sport}/${LEAGUE_META[LEAGUE].slug}` : 'basketball/nba';
             const listUrl = `https://site.api.espn.com/apis/site/v2/sports/${leaguePath}/teams`;
             try {
                 const res = await fetch(listUrl);
@@ -112,7 +118,8 @@
 
         async function fetchTeamFromAPI() {
             if (!TEAM_ID) return null;
-            const leaguePath = LEAGUE_PATHS[LEAGUE] || LEAGUE_PATHS.nba;
+            const leagueMeta = LEAGUE_META[LEAGUE] || LEAGUE_META.nba;
+            const leaguePath = `${leagueMeta.sport}/${leagueMeta.slug}`;
             const base = `https://site.api.espn.com/apis/site/v2/sports/${leaguePath}`;
             try {
                 const [teamRes, scheduleRes] = await Promise.all([
@@ -155,8 +162,8 @@
             const leagueAbbr = normalizeAbbr(comp?.league?.abbreviation || ev.leagues?.[0]?.abbreviation);
 
             if (!leagueAbbr) {
-                // If we can't detect a league, be strict and skip when a league is requested
-                return false;
+                // League-aware files already include the league in the path; allow when missing metadata
+                return true;
             }
 
             if (LEAGUE === 'nba') return leagueAbbr === 'nba';
@@ -172,13 +179,20 @@
                 showNoGames();
                 return;
             }
-            // FIX: Load from our LOCAL folder, not ESPN directly
-            const url = `data/teams/${TEAM_ID}.json`;
-            console.log('Fetching from:', url);
+            const leagueMeta = LEAGUE_META[LEAGUE] || LEAGUE_META.nba;
+            const leaguePath = `${leagueMeta.sport}/${leagueMeta.slug}`;
+            const urlNew = `data/teams/sports/${leagueMeta.sport}/${leagueMeta.slug}/${TEAM_ID}.json`;
+            const urlLegacy = `data/teams/${TEAM_ID}.json`;
+            console.log('Trying league-aware path:', urlNew);
             
             try {
-                const res = await fetch(url);
-                console.log('Response status:', res.status);
+                let res = await fetch(urlNew);
+                console.log('Response (league-aware) status:', res.status);
+                if (!res.ok) {
+                    console.log('Falling back to legacy path:', urlLegacy);
+                    res = await fetch(urlLegacy);
+                    console.log('Response (legacy) status:', res.status);
+                }
                 let events = [];
                 let teamRecord = '';
 
