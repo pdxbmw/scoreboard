@@ -13,6 +13,7 @@
             background: var(--team-color, #333); color: white; padding: 30px 20px;
             text-align: center; box-shadow: 0 4px 10px rgba(0,0,0,0.2); position: sticky; top: 0; z-index: 100;
         }
+
         .header h1 { margin: 10px 0 5px 0; font-size: 2.5rem; }
         .header-content { display: flex; flex-direction: column; align-items: center; justify-content: center; margin-left: 100px; }
         .back-btn { 
@@ -56,14 +57,17 @@
     <script>
         // Parse URL params
         const params = new URLSearchParams(window.location.search);
-        const TEAM_ID = params.get('id');
+        let TEAM_ID = params.get('id');
         const COLOR = decodeURIComponent(params.get('color'));
         const NAME = params.get('name');
-        const LEAGUE = params.get('league');
+        const LEAGUE = params.get('league') || 'nba';
+        const RETURN_TO = params.get('return');
 
         // Apply Theme
         document.getElementById('header').style.setProperty('--team-color', COLOR);
         document.getElementById('teamName').innerText = NAME || "Team Schedule";
+        const backBtn = document.querySelector('.back-btn');
+        if (backBtn && RETURN_TO) backBtn.setAttribute('href', decodeURIComponent(RETURN_TO));
 
         let refreshTimer;
 
@@ -73,7 +77,41 @@
             ncaa_wb: 'basketball/womens-college-basketball'
         };
 
+        async function resolveTeamIdByName(force = false) {
+            if (!NAME) return;
+            if (TEAM_ID && !force) return;
+            const leaguePath = LEAGUE_PATHS[LEAGUE] || LEAGUE_PATHS.nba;
+            const listUrl = `https://site.api.espn.com/apis/site/v2/sports/${leaguePath}/teams`;
+            try {
+                const res = await fetch(listUrl);
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const data = await res.json();
+                const teams = data?.sports?.[0]?.leagues?.[0]?.teams || [];
+                const norm = (s) => (s || '').toLowerCase().trim();
+                const target = norm(NAME);
+                const match = teams.find(t => {
+                    const info = t.team;
+                    return info && (norm(info.displayName) === target || norm(info.shortDisplayName) === target || norm(info.name) === target);
+                });
+                if (match && match.team?.id) {
+                    const newId = match.team.id;
+                    if (newId !== TEAM_ID) {
+                        TEAM_ID = newId;
+                        console.log('Resolved TEAM_ID by name to', TEAM_ID);
+                        // keep URL in sync for refresh/back
+                        const newParams = new URLSearchParams(window.location.search);
+                        newParams.set('id', TEAM_ID);
+                        const newUrl = `${window.location.pathname}?${newParams.toString()}`;
+                        window.history.replaceState({}, '', newUrl);
+                    }
+                }
+            } catch (e) {
+                console.log('Could not resolve team id by name', e);
+            }
+        }
+
         async function fetchTeamFromAPI() {
+            if (!TEAM_ID) return null;
             const leaguePath = LEAGUE_PATHS[LEAGUE] || LEAGUE_PATHS.nba;
             const base = `https://site.api.espn.com/apis/site/v2/sports/${leaguePath}`;
             try {
@@ -85,7 +123,11 @@
                 const teamJson = await teamRes.json();
                 const schedJson = await scheduleRes.json();
                 const teamRecord = teamJson.team?.record?.items?.[0]?.summary || teamJson.team?.recordSummary || '';
-                const events = schedJson?.team?.events || [];
+                const events = (schedJson?.team?.events || []).filter(ev => {
+                    const comp = ev.competitions?.[0];
+                    const hasTeam = comp?.competitors?.some(c => c.team?.id === TEAM_ID);
+                    return hasTeam && matchesLeague(ev);
+                });
                 return { teamRecord, events };
             } catch (e) {
                 console.log('API fallback failed:', e);
@@ -101,7 +143,35 @@
             return { dateStr, timeStr };
         };
 
+        const matchesLeague = (ev) => {
+            if (!LEAGUE) return true;
+
+            const normalizeAbbr = (abbr) => (abbr || '').toLowerCase();
+
+            const explicit = ev.league_key || ev.league;
+            if (explicit) return explicit === LEAGUE;
+
+            const comp = ev.competitions?.[0];
+            const leagueAbbr = normalizeAbbr(comp?.league?.abbreviation || ev.leagues?.[0]?.abbreviation);
+
+            if (!leagueAbbr) {
+                // If we can't detect a league, be strict and skip when a league is requested
+                return false;
+            }
+
+            if (LEAGUE === 'nba') return leagueAbbr === 'nba';
+            if (LEAGUE === 'ncaa_mb') return leagueAbbr.includes('college') || leagueAbbr.includes('ncaa') || leagueAbbr === 'ncaab' || leagueAbbr === 'ncb';
+            if (LEAGUE === 'ncaa_wb') return leagueAbbr.includes('womens') || leagueAbbr.includes('ncaa') || leagueAbbr === 'ncaaw';
+
+            return false;
+        };
+
         async function loadHistory() {
+            if (!TEAM_ID) {
+                console.warn('Missing TEAM_ID');
+                showNoGames();
+                return;
+            }
             // FIX: Load from our LOCAL folder, not ESPN directly
             const url = `data/teams/${TEAM_ID}.json`;
             console.log('Fetching from:', url);
@@ -115,13 +185,26 @@
                 if (res.ok) {
                     const data = await res.json();
                     console.log('Data keys:', Object.keys(data));
-                    events = (data.events || []).filter(ev => {
-                        const comp = ev.competitions?.[0];
-                        const hasTeam = comp?.competitors?.some(c => c.team?.id === TEAM_ID);
-                        return hasTeam;
-                    });
-                    console.log('Events count:', events.length);
-                    teamRecord = data.team?.recordSummary || '';
+                    const dataLeague = data.league_key || data.league;
+                    const leagueMismatch = dataLeague && LEAGUE && dataLeague !== LEAGUE;
+
+                    if (leagueMismatch) {
+                        console.log('Local data league mismatch, skipping local events');
+                        teamRecord = '';
+                    } else {
+                        events = (data.events || []).filter(ev => {
+                            const comp = ev.competitions?.[0];
+                            const hasTeam = comp?.competitors?.some(c => c.team?.id === TEAM_ID);
+                            const leagueKey = ev.league_key || ev.league || dataLeague;
+                            const matchesLeague = !LEAGUE || !leagueKey ? true : leagueKey === LEAGUE;
+                            return hasTeam && matchesLeague;
+                        });
+                        console.log('Events count:', events.length);
+                        teamRecord = data.team?.recordSummary || '';
+                        if (!events.length) {
+                            teamRecord = '';
+                        }
+                    }
                 } else {
                     throw new Error(`HTTP ${res.status}: ${res.statusText}`);
                 }
@@ -132,34 +215,66 @@
                     const apiData = await fetchTeamFromAPI();
                     if (apiData) {
                         events = apiData.events;
-                        teamRecord = apiData.teamRecord || teamRecord;
+                        teamRecord = apiData.teamRecord || '';
+                    }
+                }
+
+                const filteredEvents = (events || []).filter(ev => {
+                    const comp = ev.competitions?.[0];
+                    const hasTeam = comp?.competitors?.some(c => c.team?.id === TEAM_ID);
+                    return hasTeam && matchesLeague(ev);
+                });
+
+                if (!filteredEvents || filteredEvents.length === 0) {
+                    const prevId = TEAM_ID;
+                    await resolveTeamIdByName(true);
+                    if (TEAM_ID && TEAM_ID !== prevId) {
+                        return loadHistory();
                     }
                 }
 
                 document.getElementById('teamRecord').innerText = teamRecord || 'Season Record';
-                renderGames(events || []);
+
+                if (!filteredEvents || filteredEvents.length === 0) {
+                    showNoGames();
+                } else {
+                    renderGames(filteredEvents);
+                }
 
                 // set up auto-refresh to keep live scores current when we have any events
                 if (refreshTimer) clearTimeout(refreshTimer);
-                if (events && events.length) {
+                if (filteredEvents && filteredEvents.length) {
                     refreshTimer = setTimeout(loadHistory, 20000);
                 }
             } catch(e) {
                 console.error('Error loading team data:', e);
                 const apiData = await fetchTeamFromAPI();
                 if (apiData) {
+                    const filteredEvents = (apiData.events || []).filter(ev => {
+                        const comp = ev.competitions?.[0];
+                        const hasTeam = comp?.competitors?.some(c => c.team?.id === TEAM_ID);
+                        return hasTeam && matchesLeague(ev);
+                    });
                     document.getElementById('teamRecord').innerText = apiData.teamRecord || 'Season Record';
-                    renderGames(apiData.events || []);
+                    if (!filteredEvents || filteredEvents.length === 0) {
+                        showNoGames();
+                    } else {
+                        renderGames(filteredEvents);
+                    }
                 } else {
-                    const friendlyImg = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='180' viewBox='0 0 220 180'><rect width='220' height='180' rx='24' ry='24' fill='%23f5f7fb'/><circle cx='110' cy='85' r='52' fill='%23fff' stroke='%23d33' stroke-width='4'/><circle cx='90' cy='78' r='7' fill='%23d33'/><circle cx='130' cy='78' r='7' fill='%23d33'/><path d='M82 112c12-10 44-10 56 0' stroke='%23d33' stroke-width='6' fill='none' stroke-linecap='round'/></svg>";
-                    document.getElementById('games').innerHTML = `
-                        <div style='text-align:center; color:#444; font-size:1.05rem; padding:24px;'>
-                            <img src="${friendlyImg}" alt="No games" style="width:180px; max-width:80%; display:block; margin:0 auto 10px auto;" />
-                            <div style="margin-top:8px; font-weight:800;">No games here</div>
-                            <div style="margin-top:4px; font-size:1rem; color:#666;">Try another team.</div>
-                        </div>`;
+                    showNoGames();
                 }
             }
+        }
+
+        function showNoGames() {
+            const friendlyImg = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='180' viewBox='0 0 220 180'><rect width='220' height='180' rx='24' ry='24' fill='%23f5f7fb'/><circle cx='110' cy='85' r='52' fill='%23fff' stroke='%23d33' stroke-width='4'/><circle cx='90' cy='78' r='7' fill='%23d33'/><circle cx='130' cy='78' r='7' fill='%23d33'/><path d='M82 112c12-10 44-10 56 0' stroke='%23d33' stroke-width='6' fill='none' stroke-linecap='round'/></svg>";
+            document.getElementById('games').innerHTML = `
+                <div style='text-align:center; color:#444; font-size:1.05rem; padding:24px;'>
+                    <img src="${friendlyImg}" alt="No games" style="width:180px; max-width:80%; display:block; margin:0 auto 10px auto;" />
+                    <div style="margin-top:8px; font-weight:800;">No games here</div>
+                    <div style="margin-top:4px; font-size:1rem; color:#666;">Try another team.</div>
+                </div>`;
         }
 
         async function getOpponentRecord(opponentId) {

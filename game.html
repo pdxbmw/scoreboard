@@ -497,6 +497,7 @@
                 awayLogo.src = game.away.logo;
                 awayLogo.setAttribute('data-team-id', game.away.id);
                 awayLogo.setAttribute('data-team-color', AWAY_COLOR);
+                awayLogo.setAttribute('data-team-league', game.league_key || LEAGUE_KEY || 'nba');
                 console.log('🔴 Away team:', game.away.name, 'Color:', AWAY_COLOR);
             }
             const awayRank = normalizeRank(game.away?.rank);
@@ -515,6 +516,7 @@
                 homeLogo.src = game.home.logo;
                 homeLogo.setAttribute('data-team-id', game.home.id);
                 homeLogo.setAttribute('data-team-color', HOME_COLOR);
+                homeLogo.setAttribute('data-team-league', game.league_key || LEAGUE_KEY || 'nba');
                 console.log('🔴 Home team:', game.home.name, 'Color:', HOME_COLOR);
             }
             if (homeName) homeName.innerHTML = `${homeRank ? `<span class="rank-badge">#${homeRank}</span>` : ''}${game.home.name}`;
@@ -999,23 +1001,27 @@
         }
         
         function goToTeam(teamType) {
-            // Get current game data from the last load
+            const awayLogoEl = document.getElementById('awayLogo');
+            const homeLogoEl = document.getElementById('homeLogo');
             const awayTeam = {
-                id: document.getElementById('awayLogo').getAttribute('data-team-id') || '',
-                name: document.getElementById('awayName').innerText,
-                color: document.getElementById('awayLogo').getAttribute('data-team-color') || '#333333'
+                id: awayLogoEl?.getAttribute('data-team-id') || '',
+                name: document.getElementById('awayName')?.innerText || '',
+                color: awayLogoEl?.getAttribute('data-team-color') || '#333333',
+                league: awayLogoEl?.getAttribute('data-team-league') || LEAGUE_KEY || 'nba'
             };
             
             const homeTeam = {
-                id: document.getElementById('homeLogo').getAttribute('data-team-id') || '',
-                name: document.getElementById('homeName').innerText,
-                color: document.getElementById('homeLogo').getAttribute('data-team-color') || '#333333'
+                id: homeLogoEl?.getAttribute('data-team-id') || '',
+                name: document.getElementById('homeName')?.innerText || '',
+                color: homeLogoEl?.getAttribute('data-team-color') || '#333333',
+                league: homeLogoEl?.getAttribute('data-team-league') || LEAGUE_KEY || 'nba'
             };
             
             const team = teamType === 'away' ? awayTeam : homeTeam;
             
             if (team.id) {
-                location.href = `team.html?id=${team.id}&color=${encodeURIComponent(team.color)}&name=${encodeURIComponent(team.name)}`;
+                const returnTo = encodeURIComponent(window.location.href);
+                location.href = `team.html?id=${team.id}&league=${encodeURIComponent(team.league)}&color=${encodeURIComponent(team.color)}&name=${encodeURIComponent(team.name)}&return=${returnTo}`;
             }
         }
 
