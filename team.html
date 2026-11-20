@@ -98,37 +98,10 @@
         }
 
         async function resolveTeamIdByName(force = false) {
-            if (!NAME) return;
-            if (TEAM_ID && !force) return;
-            const leagueMeta = getLeagueMeta();
-            if (!leagueMeta) return;
-            const listUrl = `https://site.api.espn.com/apis/site/v2/sports/${leaguePathFromMeta(leagueMeta)}/teams`;
-            try {
-                const res = await fetch(listUrl);
-                if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                const data = await res.json();
-                const teams = data?.sports?.[0]?.leagues?.[0]?.teams || [];
-                const norm = (s) => (s || '').toLowerCase().trim();
-                const target = norm(NAME);
-                const match = teams.find(t => {
-                    const info = t.team;
-                    return info && (norm(info.displayName) === target || norm(info.shortDisplayName) === target || norm(info.name) === target || norm(info.nickname) === target);
-                });
-                if (match && match.team?.id) {
-                    const newId = String(match.team.id);
-                    if (newId !== String(TEAM_ID)) {
-                        TEAM_ID = newId;
-                        console.log('Resolved TEAM_ID by name to', TEAM_ID);
-                        const newParams = new URLSearchParams(window.location.search);
-                        newParams.set('id', TEAM_ID);
-                        newParams.set('league', LEAGUE);
-                        const newUrl = `${window.location.pathname}?${newParams.toString()}`;
-                        window.history.replaceState({}, '', newUrl);
-                    }
-                }
-            } catch (e) {
-                console.log('Could not resolve team id by name', e);
-            }
+            // ESPN /teams list endpoints omit CORS headers from github.io, so name
+            // resolution is best-effort via the CORS-friendly schedule endpoint only
+            // when we already have a candidate id.
+            if (!NAME || !TEAM_ID || !force) return;
         }
 
         async function fetchTeamFromAPI() {
@@ -138,16 +111,14 @@
                 console.warn('Unknown league key:', LEAGUE);
                 return null;
             }
-            const base = `https://site.api.espn.com/apis/site/v2/sports/${leaguePathFromMeta(leagueMeta)}`;
+            // Important: /teams/{id} is not CORS-enabled from github.io, but
+            // /teams/{id}/schedule is — and it already includes team.recordSummary.
+            const scheduleUrl = `https://site.api.espn.com/apis/site/v2/sports/${leaguePathFromMeta(leagueMeta)}/teams/${TEAM_ID}/schedule`;
             try {
-                const [teamRes, scheduleRes] = await Promise.all([
-                    fetch(`${base}/teams/${TEAM_ID}`),
-                    fetch(`${base}/teams/${TEAM_ID}/schedule`)
-                ]);
-                if (!teamRes.ok || !scheduleRes.ok) throw new Error(`HTTP ${teamRes.status}/${scheduleRes.status}`);
-                const teamJson = await teamRes.json();
+                const scheduleRes = await fetch(scheduleUrl);
+                if (!scheduleRes.ok) throw new Error(`HTTP ${scheduleRes.status}`);
                 const schedJson = await scheduleRes.json();
-                const teamRecord = teamJson.team?.record?.items?.[0]?.summary || teamJson.team?.recordSummary || '';
+                const teamRecord = schedJson.team?.recordSummary || schedJson.team?.record?.items?.[0]?.summary || '';
                 const events = (schedJson?.events || schedJson?.team?.events || []).filter(ev => {
                     const comp = ev.competitions?.[0];
                     const hasTeam = comp?.competitors?.some(c => sameId(c.team?.id, TEAM_ID));
@@ -156,6 +127,73 @@
                 return { teamRecord, events };
             } catch (e) {
                 console.log('API fallback failed:', e);
+                return null;
+            }
+        }
+
+        async function fetchTeamFromScoresJson() {
+            // Local fallback built from scraped scoreboard data (always same-origin).
+            try {
+                const res = await fetch('data/scores.json?t=' + Date.now());
+                if (!res.ok) return null;
+                const data = await res.json();
+                const events = [];
+                let teamRecord = '';
+                for (const [dayKey, games] of Object.entries(data || {})) {
+                    if (!Array.isArray(games)) continue;
+                    for (const game of games) {
+                        if (LEAGUE && game.league_key && game.league_key !== LEAGUE) continue;
+                        const home = game.home || {};
+                        const away = game.away || {};
+                        if (!sameId(home.id, TEAM_ID) && !sameId(away.id, TEAM_ID)) continue;
+                        if (!teamRecord) {
+                            const mine = sameId(home.id, TEAM_ID) ? home : away;
+                            teamRecord = mine.record || '';
+                        }
+                        const homeColor = (home.color || '#333333').replace(/^#/, '');
+                        const awayColor = (away.color || '#333333').replace(/^#/, '');
+                        // dayKey is YYYYMMDD from the scraper
+                        const isoDate = /^\d{8}$/.test(dayKey)
+                            ? `${dayKey.slice(0,4)}-${dayKey.slice(4,6)}-${dayKey.slice(6,8)}T17:00:00Z`
+                            : (game.date || game.date_label);
+                        events.push({
+                            date: isoDate,
+                            competitions: [{
+                                status: { type: { completed: !!game.completed, shortDetail: game.status } },
+                                competitors: [
+                                    {
+                                        homeAway: 'home',
+                                        score: { value: Number(home.score) || 0, displayValue: String(home.score ?? '') },
+                                        team: {
+                                            id: String(home.id),
+                                            displayName: home.name,
+                                            shortDisplayName: home.name,
+                                            abbreviation: home.name,
+                                            color: homeColor,
+                                            logos: home.logo ? [{ href: home.logo }] : []
+                                        }
+                                    },
+                                    {
+                                        homeAway: 'away',
+                                        score: { value: Number(away.score) || 0, displayValue: String(away.score ?? '') },
+                                        team: {
+                                            id: String(away.id),
+                                            displayName: away.name,
+                                            shortDisplayName: away.name,
+                                            abbreviation: away.name,
+                                            color: awayColor,
+                                            logos: away.logo ? [{ href: away.logo }] : []
+                                        }
+                                    }
+                                ]
+                            }]
+                        });
+                    }
+                }
+                if (!events.length) return null;
+                return { teamRecord, events };
+            } catch (e) {
+                console.log('scores.json fallback failed:', e);
                 return null;
             }
         }
@@ -260,10 +298,14 @@
                     }
                 }
 
-                // Prefer ESPN API for the correct league when local data is missing/wrong
+                // Prefer ESPN schedule API (CORS-safe) when local league files are missing
                 if (!usedLocal || !teamRecord) {
                     console.log('Local data missing or empty, trying API fallback for', LEAGUE);
-                    const apiData = await fetchTeamFromAPI();
+                    let apiData = await fetchTeamFromAPI();
+                    if (!apiData?.events?.length) {
+                        console.log('ESPN schedule unavailable, trying scores.json fallback');
+                        apiData = await fetchTeamFromScoresJson();
+                    }
                     if (apiData && apiData.events?.length) {
                         events = apiData.events;
                         teamRecord = apiData.teamRecord || teamRecord || '';
@@ -300,7 +342,10 @@
                 }
             } catch(e) {
                 console.error('Error loading team data:', e);
-                const apiData = await fetchTeamFromAPI();
+                let apiData = await fetchTeamFromAPI();
+                if (!apiData?.events?.length) {
+                    apiData = await fetchTeamFromScoresJson();
+                }
                 if (apiData) {
                     const filteredEvents = (apiData.events || []).filter(ev => {
                         const comp = ev.competitions?.[0];
