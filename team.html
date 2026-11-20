@@ -298,13 +298,14 @@
                     }
                 }
 
-                // Prefer ESPN schedule API (CORS-safe) when local league files are missing
+                // Local league files first; then scores.json (same-origin); ESPN last
+                // because ESPN CORS headers are inconsistent from github.io.
                 if (!usedLocal || !teamRecord) {
-                    console.log('Local data missing or empty, trying API fallback for', LEAGUE);
-                    let apiData = await fetchTeamFromAPI();
+                    console.log('Local league file missing/empty, trying scores.json for', LEAGUE);
+                    let apiData = await fetchTeamFromScoresJson();
                     if (!apiData?.events?.length) {
-                        console.log('ESPN schedule unavailable, trying scores.json fallback');
-                        apiData = await fetchTeamFromScoresJson();
+                        console.log('scores.json miss, trying ESPN schedule for', LEAGUE);
+                        apiData = await fetchTeamFromAPI();
                     }
                     if (apiData && apiData.events?.length) {
                         events = apiData.events;

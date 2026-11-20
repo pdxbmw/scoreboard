@@ -1,8 +1,6 @@
-# Teams folder for individual team data
-teams/
-
-# Main scores file (now in data folder)
-scores.json
+# Local scratch at repo root only (do not ignore data/teams or data/scores.json)
+/teams/
+/scores.json
 
 # Virtual environment
 venv/

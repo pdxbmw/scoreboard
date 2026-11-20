@@ -23,16 +23,15 @@ jobs:
         run: pip install requests
 
       - name: Fetch Data
-        env:
-          # Team JSON files are not committed; skip the slow per-team scrape in CI
-          SKIP_TEAM_HISTORY: '1'
         run: python scripts/fetch_scores.py
 
       - name: Commit and Push
         run: |
           git config --global user.name "ScoreBot"
           git config --global user.email "bot@noreply.github.com"
-          git add data/scores.json
+          # scores + league-scoped team schedules (needed because ESPN team APIs
+          # often omit CORS headers when called from GitHub Pages)
+          git add data/scores.json data/teams/sports
           if git diff --staged --quiet; then
             echo "No score changes to commit"
             exit 0

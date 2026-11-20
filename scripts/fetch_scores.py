@@ -119,7 +119,59 @@ merged.update(all_data)  # overwrite only the dates we just fetched
 with scores_path.open('w') as f:
     json.dump(merged, f)
 
-# 2. FETCH INDIVIDUAL TEAM HISTORIES (optional; skipped in CI by default)
+def slim_team_schedule(data, league_key=None):
+    """Keep only fields team.html needs so committed JSON stays small."""
+    team = data.get('team') or {}
+    events = []
+    for ev in data.get('events') or []:
+        comp = (ev.get('competitions') or [None])[0]
+        if not comp:
+            continue
+        competitors = []
+        for c in comp.get('competitors') or []:
+            t = c.get('team') or {}
+            logos = t.get('logos') or []
+            logo0 = logos[0].get('href') if logos and isinstance(logos[0], dict) else (t.get('logo') or '')
+            competitors.append({
+                'homeAway': c.get('homeAway'),
+                'score': c.get('score'),
+                'team': {
+                    'id': t.get('id'),
+                    'displayName': t.get('displayName'),
+                    'shortDisplayName': t.get('shortDisplayName') or t.get('name'),
+                    'abbreviation': t.get('abbreviation'),
+                    'color': t.get('color'),
+                    'logos': [{'href': logo0}] if logo0 else [],
+                }
+            })
+        status = (comp.get('status') or {}).get('type') or {}
+        events.append({
+            'date': ev.get('date'),
+            'name': ev.get('name'),
+            'competitions': [{
+                'status': {'type': {
+                    'completed': status.get('completed'),
+                    'shortDetail': status.get('shortDetail'),
+                }},
+                'competitors': competitors,
+            }]
+        })
+    return {
+        'league_key': league_key or data.get('league_key'),
+        'league': league_key or data.get('league') or data.get('league_key'),
+        'team': {
+            'id': team.get('id'),
+            'displayName': team.get('displayName'),
+            'shortDisplayName': team.get('shortDisplayName') or team.get('name'),
+            'abbreviation': team.get('abbreviation'),
+            'color': team.get('color'),
+            'logo': team.get('logo'),
+            'recordSummary': team.get('recordSummary'),
+        },
+        'events': events,
+    }
+
+# 2. FETCH INDIVIDUAL TEAM HISTORIES (optional; skipped when SKIP_TEAM_HISTORY=1)
 if os.environ.get("SKIP_TEAM_HISTORY", "").lower() in ("1", "true", "yes"):
     print(f"--- Skipping team history fetch ({len(teams_to_fetch)} teams) ---")
 else:
@@ -130,12 +182,14 @@ else:
             # Fetch the FULL schedule for this team
             url = f"https://site.api.espn.com/apis/site/v2/sports/{sport}/{league_slug}/teams/{team_id}/schedule"
             data = requests.get(url).json()
+            league_key = next((lg["key"] for lg in LEAGUES if lg["sport"] == sport and lg["league_slug"] == league_slug), None)
+            slim = slim_team_schedule(data, league_key)
 
             # Save to data/teams/sports/{sport}/{league_slug}/{TEAM_ID}.json
             team_path = TEAMS_DIR / sport / league_slug / f"{team_id}.json"
             team_path.parent.mkdir(parents=True, exist_ok=True)
             with team_path.open('w') as f:
-                json.dump(data, f)
+                json.dump(slim, f)
 
         except Exception as e:
             print(f"Failed to fetch team {team_id}: {e}")
