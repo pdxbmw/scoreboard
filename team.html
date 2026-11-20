@@ -58,13 +58,13 @@
         // Parse URL params
         const params = new URLSearchParams(window.location.search);
         let TEAM_ID = params.get('id');
-        const COLOR = decodeURIComponent(params.get('color'));
+        const COLOR = decodeURIComponent(params.get('color') || '');
         const NAME = params.get('name');
-        const LEAGUE = params.get('league') || 'nba';
+        const LEAGUE = (params.get('league') || 'nba').toLowerCase();
         const RETURN_TO = params.get('return');
 
         // Apply Theme
-        document.getElementById('header').style.setProperty('--team-color', COLOR);
+        document.getElementById('header').style.setProperty('--team-color', COLOR || '#333');
         const teamNameEl = document.getElementById('teamName');
         if (teamNameEl) {
             // Insert space between rank token (e.g., #3) and name if missing
@@ -77,17 +77,32 @@
 
         let refreshTimer;
 
+        // ESPN team IDs collide across sports — always resolve by league key
         const LEAGUE_META = {
+            nfl: { sport: 'football', slug: 'nfl' },
+            ncaa_fb: { sport: 'football', slug: 'college-football' },
             nba: { sport: 'basketball', slug: 'nba' },
+            wnba: { sport: 'basketball', slug: 'wnba' },
             ncaa_mb: { sport: 'basketball', slug: 'mens-college-basketball' },
             ncaa_wb: { sport: 'basketball', slug: 'womens-college-basketball' }
         };
 
+        const sameId = (a, b) => String(a ?? '') === String(b ?? '');
+
+        function getLeagueMeta() {
+            return LEAGUE_META[LEAGUE] || null;
+        }
+
+        function leaguePathFromMeta(meta) {
+            return `${meta.sport}/${meta.slug}`;
+        }
+
         async function resolveTeamIdByName(force = false) {
             if (!NAME) return;
             if (TEAM_ID && !force) return;
-            const leaguePath = LEAGUE_META[LEAGUE]?.slug ? `${LEAGUE_META[LEAGUE].sport}/${LEAGUE_META[LEAGUE].slug}` : 'basketball/nba';
-            const listUrl = `https://site.api.espn.com/apis/site/v2/sports/${leaguePath}/teams`;
+            const leagueMeta = getLeagueMeta();
+            if (!leagueMeta) return;
+            const listUrl = `https://site.api.espn.com/apis/site/v2/sports/${leaguePathFromMeta(leagueMeta)}/teams`;
             try {
                 const res = await fetch(listUrl);
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -97,16 +112,16 @@
                 const target = norm(NAME);
                 const match = teams.find(t => {
                     const info = t.team;
-                    return info && (norm(info.displayName) === target || norm(info.shortDisplayName) === target || norm(info.name) === target);
+                    return info && (norm(info.displayName) === target || norm(info.shortDisplayName) === target || norm(info.name) === target || norm(info.nickname) === target);
                 });
                 if (match && match.team?.id) {
-                    const newId = match.team.id;
-                    if (newId !== TEAM_ID) {
+                    const newId = String(match.team.id);
+                    if (newId !== String(TEAM_ID)) {
                         TEAM_ID = newId;
                         console.log('Resolved TEAM_ID by name to', TEAM_ID);
-                        // keep URL in sync for refresh/back
                         const newParams = new URLSearchParams(window.location.search);
                         newParams.set('id', TEAM_ID);
+                        newParams.set('league', LEAGUE);
                         const newUrl = `${window.location.pathname}?${newParams.toString()}`;
                         window.history.replaceState({}, '', newUrl);
                     }
@@ -118,9 +133,12 @@
 
         async function fetchTeamFromAPI() {
             if (!TEAM_ID) return null;
-            const leagueMeta = LEAGUE_META[LEAGUE] || LEAGUE_META.nba;
-            const leaguePath = `${leagueMeta.sport}/${leagueMeta.slug}`;
-            const base = `https://site.api.espn.com/apis/site/v2/sports/${leaguePath}`;
+            const leagueMeta = getLeagueMeta();
+            if (!leagueMeta) {
+                console.warn('Unknown league key:', LEAGUE);
+                return null;
+            }
+            const base = `https://site.api.espn.com/apis/site/v2/sports/${leaguePathFromMeta(leagueMeta)}`;
             try {
                 const [teamRes, scheduleRes] = await Promise.all([
                     fetch(`${base}/teams/${TEAM_ID}`),
@@ -130,9 +148,9 @@
                 const teamJson = await teamRes.json();
                 const schedJson = await scheduleRes.json();
                 const teamRecord = teamJson.team?.record?.items?.[0]?.summary || teamJson.team?.recordSummary || '';
-                const events = (schedJson?.team?.events || []).filter(ev => {
+                const events = (schedJson?.events || schedJson?.team?.events || []).filter(ev => {
                     const comp = ev.competitions?.[0];
-                    const hasTeam = comp?.competitors?.some(c => c.team?.id === TEAM_ID);
+                    const hasTeam = comp?.competitors?.some(c => sameId(c.team?.id, TEAM_ID));
                     return hasTeam && matchesLeague(ev);
                 });
                 return { teamRecord, events };
@@ -144,7 +162,7 @@
 
         const formatLocal = (iso) => {
             const d = new Date(iso);
-            if (isNaN(d.getTime())) return '';
+            if (isNaN(d.getTime())) return { dateStr: '', timeStr: '' };
             const dateStr = `${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}, ${d.getFullYear()}`;
             const timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
             return { dateStr, timeStr };
@@ -155,23 +173,33 @@
 
             const normalizeAbbr = (abbr) => (abbr || '').toLowerCase();
 
-            const explicit = ev.league_key || ev.league;
+            const explicit = (ev.league_key || '').toLowerCase();
             if (explicit) return explicit === LEAGUE;
 
             const comp = ev.competitions?.[0];
             const leagueAbbr = normalizeAbbr(comp?.league?.abbreviation || ev.leagues?.[0]?.abbreviation);
 
-            if (!leagueAbbr) {
-                // League-aware files already include the league in the path; allow when missing metadata
-                return true;
-            }
+            // League-aware ESPN schedule endpoints already scope by sport/league
+            if (!leagueAbbr) return true;
 
+            if (LEAGUE === 'nfl') return leagueAbbr === 'nfl';
+            if (LEAGUE === 'ncaa_fb') return leagueAbbr.includes('college') || leagueAbbr === 'ncaaf' || leagueAbbr === 'cfb' || leagueAbbr === 'ncaa';
             if (LEAGUE === 'nba') return leagueAbbr === 'nba';
-            if (LEAGUE === 'ncaa_mb') return leagueAbbr.includes('college') || leagueAbbr.includes('ncaa') || leagueAbbr === 'ncaab' || leagueAbbr === 'ncb';
-            if (LEAGUE === 'ncaa_wb') return leagueAbbr.includes('womens') || leagueAbbr.includes('ncaa') || leagueAbbr === 'ncaaw';
+            if (LEAGUE === 'wnba') return leagueAbbr === 'wnba';
+            if (LEAGUE === 'ncaa_mb') return leagueAbbr.includes('college') || leagueAbbr.includes('ncaa') || leagueAbbr === 'ncaab' || leagueAbbr === 'ncb' || leagueAbbr === 'mbb';
+            if (LEAGUE === 'ncaa_wb') return leagueAbbr.includes('women') || leagueAbbr.includes('ncaa') || leagueAbbr === 'ncaaw' || leagueAbbr === 'wbb';
 
             return false;
         };
+
+        function localTeamNameMatches(data) {
+            if (!NAME) return true;
+            const team = data?.team || {};
+            const norm = (s) => (s || '').toLowerCase().trim();
+            const target = norm(NAME);
+            return [team.displayName, team.shortDisplayName, team.name, team.nickname, team.abbreviation]
+                .some(v => norm(v) === target || (target && norm(v).includes(target)));
+        }
 
         async function loadHistory() {
             if (!TEAM_ID) {
@@ -179,67 +207,78 @@
                 showNoGames();
                 return;
             }
-            const leagueMeta = LEAGUE_META[LEAGUE] || LEAGUE_META.nba;
-            const leaguePath = `${leagueMeta.sport}/${leagueMeta.slug}`;
+            const leagueMeta = getLeagueMeta();
+            if (!leagueMeta) {
+                console.warn('Unknown league key:', LEAGUE);
+                showNoGames();
+                return;
+            }
             const urlNew = `data/teams/sports/${leagueMeta.sport}/${leagueMeta.slug}/${TEAM_ID}.json`;
+            // Legacy flat files are not league-scoped (id 27 is Bucs AND Wizards) — only use as a last local hint
             const urlLegacy = `data/teams/${TEAM_ID}.json`;
-            console.log('Trying league-aware path:', urlNew);
+            console.log('Trying league-aware path:', urlNew, 'league=', LEAGUE);
             
             try {
                 let res = await fetch(urlNew);
                 console.log('Response (league-aware) status:', res.status);
-                if (!res.ok) {
-                    console.log('Falling back to legacy path:', urlLegacy);
-                    res = await fetch(urlLegacy);
-                    console.log('Response (legacy) status:', res.status);
-                }
                 let events = [];
                 let teamRecord = '';
+                let usedLocal = false;
 
                 if (res.ok) {
                     const data = await res.json();
-                    console.log('Data keys:', Object.keys(data));
-                    const dataLeague = data.league_key || data.league;
-                    const leagueMismatch = dataLeague && LEAGUE && dataLeague !== LEAGUE;
+                    const dataLeague = (data.league_key || data.league || '').toLowerCase();
+                    const leagueMismatch = dataLeague && dataLeague !== LEAGUE;
 
                     if (leagueMismatch) {
                         console.log('Local data league mismatch, skipping local events');
-                        teamRecord = '';
                     } else {
                         events = (data.events || []).filter(ev => {
                             const comp = ev.competitions?.[0];
-                            const hasTeam = comp?.competitors?.some(c => c.team?.id === TEAM_ID);
-                            const leagueKey = ev.league_key || ev.league || dataLeague;
-                            const matchesLeague = !LEAGUE || !leagueKey ? true : leagueKey === LEAGUE;
-                            return hasTeam && matchesLeague;
+                            const hasTeam = comp?.competitors?.some(c => sameId(c.team?.id, TEAM_ID));
+                            return hasTeam && matchesLeague(ev);
                         });
-                        console.log('Events count:', events.length);
                         teamRecord = data.team?.recordSummary || '';
-                        if (!events.length) {
-                            teamRecord = '';
-                        }
+                        usedLocal = events.length > 0;
                     }
                 } else {
-                    throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-                }
-
-                // Fallback to ESPN API if no local data
-                if ((!events || events.length === 0) || !teamRecord) {
-                    console.log('Local data missing or empty, trying API fallback');
-                    const apiData = await fetchTeamFromAPI();
-                    if (apiData) {
-                        events = apiData.events;
-                        teamRecord = apiData.teamRecord || '';
+                    // Only accept legacy file if the team name matches this page's league context
+                    console.log('League-aware file missing; checking legacy path carefully:', urlLegacy);
+                    const legacyRes = await fetch(urlLegacy);
+                    if (legacyRes.ok) {
+                        const data = await legacyRes.json();
+                        if (localTeamNameMatches(data)) {
+                            events = (data.events || []).filter(ev => {
+                                const comp = ev.competitions?.[0];
+                                return comp?.competitors?.some(c => sameId(c.team?.id, TEAM_ID));
+                            });
+                            teamRecord = data.team?.recordSummary || '';
+                            usedLocal = events.length > 0;
+                        } else {
+                            console.log('Legacy file is a different sport/team; ignoring', data?.team?.displayName);
+                        }
                     }
                 }
 
-                const filteredEvents = (events || []).filter(ev => {
+                // Prefer ESPN API for the correct league when local data is missing/wrong
+                if (!usedLocal || !teamRecord) {
+                    console.log('Local data missing or empty, trying API fallback for', LEAGUE);
+                    const apiData = await fetchTeamFromAPI();
+                    if (apiData && apiData.events?.length) {
+                        events = apiData.events;
+                        teamRecord = apiData.teamRecord || teamRecord || '';
+                    } else if (apiData?.teamRecord) {
+                        teamRecord = apiData.teamRecord;
+                    }
+                }
+
+                let filteredEvents = (events || []).filter(ev => {
                     const comp = ev.competitions?.[0];
-                    const hasTeam = comp?.competitors?.some(c => c.team?.id === TEAM_ID);
+                    const hasTeam = comp?.competitors?.some(c => sameId(c.team?.id, TEAM_ID));
                     return hasTeam && matchesLeague(ev);
                 });
 
-                if (!filteredEvents || filteredEvents.length === 0) {
+                if (!filteredEvents.length) {
                     const prevId = TEAM_ID;
                     await resolveTeamIdByName(true);
                     if (TEAM_ID && TEAM_ID !== prevId) {
@@ -249,15 +288,14 @@
 
                 document.getElementById('teamRecord').innerText = teamRecord || 'Season Record';
 
-                if (!filteredEvents || filteredEvents.length === 0) {
+                if (!filteredEvents.length) {
                     showNoGames();
                 } else {
                     renderGames(filteredEvents);
                 }
 
-                // set up auto-refresh to keep live scores current when we have any events
                 if (refreshTimer) clearTimeout(refreshTimer);
-                if (filteredEvents && filteredEvents.length) {
+                if (filteredEvents.length) {
                     refreshTimer = setTimeout(loadHistory, 20000);
                 }
             } catch(e) {
@@ -266,11 +304,11 @@
                 if (apiData) {
                     const filteredEvents = (apiData.events || []).filter(ev => {
                         const comp = ev.competitions?.[0];
-                        const hasTeam = comp?.competitors?.some(c => c.team?.id === TEAM_ID);
+                        const hasTeam = comp?.competitors?.some(c => sameId(c.team?.id, TEAM_ID));
                         return hasTeam && matchesLeague(ev);
                     });
                     document.getElementById('teamRecord').innerText = apiData.teamRecord || 'Season Record';
-                    if (!filteredEvents || filteredEvents.length === 0) {
+                    if (!filteredEvents.length) {
                         showNoGames();
                     } else {
                         renderGames(filteredEvents);
@@ -292,19 +330,22 @@
         }
 
         async function getOpponentRecord(opponentId) {
-            try {
-                console.log(`Fetching record for opponent ${opponentId}`);
-                const res = await fetch(`data/teams/${opponentId}.json`);
-                if (res.ok) {
+            const leagueMeta = getLeagueMeta();
+            const candidates = [];
+            if (leagueMeta) {
+                candidates.push(`data/teams/sports/${leagueMeta.sport}/${leagueMeta.slug}/${opponentId}.json`);
+            }
+            candidates.push(`data/teams/${opponentId}.json`);
+            for (const url of candidates) {
+                try {
+                    const res = await fetch(url);
+                    if (!res.ok) continue;
                     const data = await res.json();
                     const record = data.team?.recordSummary;
-                    console.log(`Opponent ${opponentId} record:`, record);
-                    return record || '';
-                } else {
-                    console.log(`Opponent ${opponentId} file not found (status: ${res.status})`);
+                    if (record) return record;
+                } catch (e) {
+                    console.log('Could not fetch opponent record for', opponentId, e);
                 }
-            } catch (e) {
-                console.log('Could not fetch opponent record for', opponentId, e);
             }
             return '';
         }
@@ -323,8 +364,8 @@
                     continue;
                 }
                 
-                const opponent = game.competitors && game.competitors.find(c => c.team && c.team.id !== TEAM_ID);
-                const myTeam = game.competitors && game.competitors.find(c => c.team && c.team.id === TEAM_ID);
+                const opponent = game.competitors && game.competitors.find(c => c.team && !sameId(c.team.id, TEAM_ID));
+                const myTeam = game.competitors && game.competitors.find(c => c.team && sameId(c.team.id, TEAM_ID));
                 
                 if (!opponent || !myTeam) {
                     console.warn('Missing team data for event:', event);
@@ -337,31 +378,29 @@
                 div.className = 'game-row';
 
                 let resultHTML = "";
-                // Check status at competition level
                 const isCompleted = game.status && game.status.type && game.status.type.completed;
                 
                 if (isCompleted) {
-                    const myScore = parseInt(myTeam.score?.value || 0);
-                    const opScore = parseInt(opponent.score?.value || 0);
+                    const myScore = parseInt(myTeam.score?.value ?? myTeam.score ?? 0, 10);
+                    const opScore = parseInt(opponent.score?.value ?? opponent.score ?? 0, 10);
                     const isWin = myScore > opScore;
                     
                     resultHTML = `<span class="result ${isWin ? 'win' : 'loss'}">
                         ${isWin ? 'W' : 'L'} ${myScore}-${opScore}
                     </span>`;
                 } else {
-                    // Show game time for upcoming games (localized)
                     resultHTML = `<span class="result future">${timeStr}</span>`;
                 }
 
-                // Get opponent record from their team data
                 const opponentRecord = await getOpponentRecord(opponent.team.id);
 
                 const oppColor = opponent.team?.color ? `#${opponent.team.color}` : '#333';
                 const oppName = opponent.team?.displayName || opponent.team?.shortDisplayName || opponent.team?.abbreviation || 'Team';
+                const oppHref = `team.html?id=${encodeURIComponent(opponent.team.id)}&league=${encodeURIComponent(LEAGUE)}&color=${encodeURIComponent(oppColor)}&name=${encodeURIComponent(oppName)}`;
                 
                 div.innerHTML = `
                     <span class="game-date">${dateStr}</span>
-                    <div class="opponent" onclick="location.href='team.html?id=${opponent.team.id}&color=${encodeURIComponent(oppColor)}&name=${encodeURIComponent(oppName)}'" style="cursor:pointer;">
+                    <div class="opponent" onclick="location.href='${oppHref}'" style="cursor:pointer;">
                         <img src="${opponent.team.logos?.[0]?.href || ''}">
                         <div>
                             <span class="opponent-name">${opponent.team.abbreviation || opponent.team.shortDisplayName || 'Unknown'}</span>
