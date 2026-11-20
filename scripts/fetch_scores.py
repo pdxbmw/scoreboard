@@ -119,25 +119,28 @@ merged.update(all_data)  # overwrite only the dates we just fetched
 with scores_path.open('w') as f:
     json.dump(merged, f)
 
-# 2. FETCH INDIVIDUAL TEAM HISTORIES (The Fix for CORS)
-print(f"--- Fetching History for {len(teams_to_fetch)} Teams ---")
+# 2. FETCH INDIVIDUAL TEAM HISTORIES (optional; skipped in CI by default)
+if os.environ.get("SKIP_TEAM_HISTORY", "").lower() in ("1", "true", "yes"):
+    print(f"--- Skipping team history fetch ({len(teams_to_fetch)} teams) ---")
+else:
+    print(f"--- Fetching History for {len(teams_to_fetch)} Teams ---")
 
-for (team_id, sport, league_slug) in teams_to_fetch:
-    try:
-        # Fetch the FULL schedule for this team
-        url = f"https://site.api.espn.com/apis/site/v2/sports/{sport}/{league_slug}/teams/{team_id}/schedule"
-        data = requests.get(url).json()
-        
-        # Save to data/teams/sports/{sport}/{league_slug}/{TEAM_ID}.json
-        team_path = TEAMS_DIR / sport / league_slug / f"{team_id}.json"
-        team_path.parent.mkdir(parents=True, exist_ok=True)
-        with team_path.open('w') as f:
-            json.dump(data, f)
-            
-    except Exception as e:
-        print(f"Failed to fetch team {team_id}: {e}")
-    
-    # Sleep briefly to be nice to ESPN's API
-    time.sleep(0.1)
+    for (team_id, sport, league_slug) in teams_to_fetch:
+        try:
+            # Fetch the FULL schedule for this team
+            url = f"https://site.api.espn.com/apis/site/v2/sports/{sport}/{league_slug}/teams/{team_id}/schedule"
+            data = requests.get(url).json()
+
+            # Save to data/teams/sports/{sport}/{league_slug}/{TEAM_ID}.json
+            team_path = TEAMS_DIR / sport / league_slug / f"{team_id}.json"
+            team_path.parent.mkdir(parents=True, exist_ok=True)
+            with team_path.open('w') as f:
+                json.dump(data, f)
+
+        except Exception as e:
+            print(f"Failed to fetch team {team_id}: {e}")
+
+        # Sleep briefly to be nice to ESPN's API
+        time.sleep(0.1)
 
 print("--- Update Complete ---")
