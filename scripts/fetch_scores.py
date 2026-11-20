@@ -1,6 +1,7 @@
 import requests
 import json
 import os
+import re
 import time
 from pathlib import Path
 from datetime import datetime, timedelta
@@ -18,11 +19,16 @@ LEAGUES = [
     {"key": "ncaa_wb", "sport": "basketball", "league_slug": "womens-college-basketball", "url": "http://site.api.espn.com/apis/site/v2/sports/basketball/womens-college-basketball/scoreboard", "name": "Women's College Hoops"}
 ]
 
+LIVE_STATUS_RE = re.compile(
+    r'(q\d|halftime|\bot\b|\d+:\d+\s*-\s*\d+(?:st|nd|rd|th)|in progress)',
+    re.I,
+)
+
 def get_date_str(offset):
     return (datetime.now() + timedelta(days=offset)).strftime('%Y%m%d')
 
-def pretty_date(offset):
-    d = datetime.now() + timedelta(days=offset)
+def pretty_date_from_str(date_str):
+    d = datetime.strptime(date_str, '%Y%m%d')
     return d.strftime('%A, %b %d')
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
@@ -44,29 +50,39 @@ def extract_rank(comp):
     except Exception:
         return None
 
-# 1. FETCH MAIN SCOREBOARD
-print("--- Fetching Scoreboard ---")
-for offset in range(-DAYS_BACK, DAYS_FORWARD + 1):
-    date_str = get_date_str(offset)
-    date_key = pretty_date(offset)
+def looks_live(status, completed):
+    if completed:
+        return False
+    return bool(LIVE_STATUS_RE.search(status or ''))
+
+def pick_side(competitors, side):
+    by_side = {c.get('homeAway'): c for c in competitors or []}
+    if side in by_side:
+        return by_side[side]
+    if side == 'home':
+        return (competitors or [None])[0]
+    return (competitors or [None, None])[1]
+
+def fetch_day(date_str):
+    date_key = pretty_date_from_str(date_str)
     print(f"Processing {date_key}...")
-    
     daily_games = []
-    
+
     for league in LEAGUES:
         try:
             full_url = f"{league['url']}?dates={date_str}"
-            resp = requests.get(full_url).json()
-            
+            resp = requests.get(full_url, timeout=30).json()
+
             for event in resp.get('events', []):
                 comp = event['competitions'][0]
-                home = comp['competitors'][0]
-                away = comp['competitors'][1]
-                
-                # Capture teams for deep history fetching later
-                if 'id' in home['team']:
+                home = pick_side(comp.get('competitors'), 'home')
+                away = pick_side(comp.get('competitors'), 'away')
+                if not home or not away:
+                    continue
+
+                if 'id' in home.get('team', {}):
                     teams_to_fetch.add((home['team']['id'], league['sport'], league['league_slug']))
-                if 'id' in away['team']:
+                if 'id' in away.get('team', {}):
                     teams_to_fetch.add((away['team']['id'], league['sport'], league['league_slug']))
 
                 game_data = {
@@ -84,7 +100,7 @@ for offset in range(-DAYS_BACK, DAYS_FORWARD + 1):
                         "score": home['score'],
                         "logo": home['team'].get('logo', ''),
                         "color": f"#{home['team'].get('color', '333333')}",
-                        "record": home.get('records', [{'summary':'0-0'}])[0]['summary'],
+                        "record": (home.get('records') or [{'summary': '0-0'}])[0]['summary'],
                         "rank": extract_rank(home)
                     },
                     "away": {
@@ -93,17 +109,17 @@ for offset in range(-DAYS_BACK, DAYS_FORWARD + 1):
                         "score": away['score'],
                         "logo": away['team'].get('logo', ''),
                         "color": f"#{away['team'].get('color', '333333')}",
-                        "record": away.get('records', [{'summary':'0-0'}])[0]['summary'],
+                        "record": (away.get('records') or [{'summary': '0-0'}])[0]['summary'],
                         "rank": extract_rank(away)
                     }
                 }
                 daily_games.append(game_data)
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"  warn {league['key']} {date_str}: {e}")
 
-    all_data[date_str] = daily_games
+    return daily_games
 
-# Save Main Scoreboard (preserve older dates)
+# Load existing scores first so we can refresh stuck incomplete days
 scores_path = DATA_DIR / 'scores.json'
 old_data = {}
 if scores_path.exists():
@@ -112,6 +128,25 @@ if scores_path.exists():
             old_data = json.load(f)
     except Exception:
         old_data = {}
+
+dates_to_fetch = {get_date_str(offset) for offset in range(-DAYS_BACK, DAYS_FORWARD + 1)}
+
+# Re-fetch any older days that still look mid-game so they don't freeze forever
+stuck_dates = set()
+for date_str, games in old_data.items():
+    if not isinstance(games, list):
+        continue
+    if any(looks_live(g.get('status'), g.get('completed')) for g in games):
+        stuck_dates.add(date_str)
+        dates_to_fetch.add(date_str)
+
+if stuck_dates:
+    print(f"--- Also refreshing {len(stuck_dates)} stuck in-progress date(s): {', '.join(sorted(stuck_dates))} ---")
+
+# 1. FETCH MAIN SCOREBOARD
+print("--- Fetching Scoreboard ---")
+for date_str in sorted(dates_to_fetch):
+    all_data[date_str] = fetch_day(date_str)
 
 merged = dict(old_data)
 merged.update(all_data)  # overwrite only the dates we just fetched
@@ -181,7 +216,7 @@ else:
         try:
             # Fetch the FULL schedule for this team
             url = f"https://site.api.espn.com/apis/site/v2/sports/{sport}/{league_slug}/teams/{team_id}/schedule"
-            data = requests.get(url).json()
+            data = requests.get(url, timeout=30).json()
             league_key = next((lg["key"] for lg in LEAGUES if lg["sport"] == sport and lg["league_slug"] == league_slug), None)
             slim = slim_team_schedule(data, league_key)
 

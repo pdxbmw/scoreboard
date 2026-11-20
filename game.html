@@ -241,16 +241,26 @@
         let updateInterval;
         let lastScores = { home: 0, away: 0 };
 
-        const LEAGUE_ENDPOINTS = {
-            nba: 'https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard',
-            ncaa_mb: 'https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/scoreboard',
-            ncaa_wb: 'https://site.api.espn.com/apis/site/v2/sports/basketball/womens-college-basketball/scoreboard'
+        const LEAGUE_META = {
+            nfl: { sport: 'football', slug: 'nfl', label: 'NFL' },
+            ncaa_fb: { sport: 'football', slug: 'college-football', label: 'College Football' },
+            nba: { sport: 'basketball', slug: 'nba', label: 'NBA' },
+            wnba: { sport: 'basketball', slug: 'wnba', label: 'WNBA' },
+            ncaa_mb: { sport: 'basketball', slug: 'mens-college-basketball', label: 'NCAA Men' },
+            ncaa_wb: { sport: 'basketball', slug: 'womens-college-basketball', label: 'NCAA Women' }
         };
-        const LEAGUE_SUMMARY = {
-            nba: 'https://site.api.espn.com/apis/site/v2/sports/basketball/nba/summary?event=',
-            ncaa_mb: 'https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/summary?event=',
-            ncaa_wb: 'https://site.api.espn.com/apis/site/v2/sports/basketball/womens-college-basketball/summary?event='
-        };
+        const LEAGUE_ENDPOINTS = Object.fromEntries(
+            Object.entries(LEAGUE_META).map(([key, meta]) => [
+                key,
+                `https://site.api.espn.com/apis/site/v2/sports/${meta.sport}/${meta.slug}/scoreboard`
+            ])
+        );
+        const LEAGUE_SUMMARY = Object.fromEntries(
+            Object.entries(LEAGUE_META).map(([key, meta]) => [
+                key,
+                `https://site.api.espn.com/apis/site/v2/sports/${meta.sport}/${meta.slug}/summary?event=`
+            ])
+        );
 
         const normalizeRank = (r) => {
             const n = Number(r);
@@ -287,7 +297,10 @@
                 console.log('🔄 Fetching detailed game data from ESPN API');
                 let gameData = null;
                 
-                // First try summary endpoint for exact game
+                const leagueMeta = LEAGUE_META[LEAGUE_KEY] || LEAGUE_META.nba;
+                const sameId = (a, b) => String(a ?? '') === String(b ?? '');
+
+                // First try summary endpoint for exact game (works for past games too)
                 try {
                     const summaryUrl = (LEAGUE_SUMMARY[LEAGUE_KEY] || LEAGUE_SUMMARY.nba) + GAME_ID;
                     console.log('Fetching summary URL:', summaryUrl);
@@ -301,14 +314,14 @@
                             const status = comp.status?.type?.shortDetail || comp.status?.type?.detail || '';
                             gameData = {
                                 id: comp.id || GAME_ID,
-                                league: summary?.header?.leagues?.[0]?.name || (LEAGUE_KEY === 'ncaa_mb' ? 'NCAA Men' : LEAGUE_KEY === 'ncaa_wb' ? 'NCAA Women' : 'NBA'),
+                                league: summary?.header?.leagues?.[0]?.name || leagueMeta.label,
                                 league_key: LEAGUE_KEY,
-                                sport: 'basketball',
-                                league_slug: LEAGUE_KEY,
+                                sport: leagueMeta.sport,
+                                league_slug: leagueMeta.slug,
                                 date: comp.date,
                                 date_label: new Date(comp.date).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' }),
                                 status,
-                                completed: comp.status?.type?.completed || false,
+                                completed: !!comp.status?.type?.completed,
                                 fullCompetition: comp,
                                 away: {
                                     name: away?.team?.displayName,
@@ -317,7 +330,8 @@
                                     record: away?.records?.[0]?.summary || '0-0',
                                     score: away?.score || '0',
                                     id: away?.team?.id,
-                                    rank: normalizeRank(away?.curatedRank?.current || away?.rank)
+                                    rank: normalizeRank(away?.curatedRank?.current || away?.rank),
+                                    league: LEAGUE_KEY
                                 },
                                 home: {
                                     name: home?.team?.displayName,
@@ -326,7 +340,8 @@
                                     record: home?.records?.[0]?.summary || '0-0',
                                     score: home?.score || '0',
                                     id: home?.team?.id,
-                                    rank: normalizeRank(home?.curatedRank?.current || home?.rank)
+                                    rank: normalizeRank(home?.curatedRank?.current || home?.rank),
+                                    league: LEAGUE_KEY
                                 }
                             };
                             const local = formatLocalDateTime(comp.date);
@@ -338,36 +353,36 @@
                     console.log('⚠️ Summary fetch failed, will try scoreboard:', e);
                 }
 
-                // If summary didn't return, try to get data from ESPN scoreboard
-                try {
-                    const gameUrl = LEAGUE_ENDPOINTS[LEAGUE_KEY] || LEAGUE_ENDPOINTS.nba;
-                    console.log('Fetching from URL:', gameUrl);
-                    
-                    const gameRes = await fetch(gameUrl);
-                    const gameDataResponse = await gameRes.json();
-                    
-                    console.log('Game data response events count:', gameDataResponse.events?.length || 0);
-                    console.log('Looking for game ID:', GAME_ID, 'league:', LEAGUE_KEY);
-                    
-                    // Find our game in the data
-                    for (const event of gameDataResponse.events) {
-                        if (event.id === GAME_ID) {
+                // If summary didn't return, try today's ESPN scoreboard for this league
+                if (!gameData) {
+                    try {
+                        const gameUrl = LEAGUE_ENDPOINTS[LEAGUE_KEY] || LEAGUE_ENDPOINTS.nba;
+                        console.log('Fetching from URL:', gameUrl);
+
+                        const gameRes = await fetch(gameUrl);
+                        const gameDataResponse = await gameRes.json();
+
+                        console.log('Game data response events count:', gameDataResponse.events?.length || 0);
+                        console.log('Looking for game ID:', GAME_ID, 'league:', LEAGUE_KEY);
+
+                        for (const event of (gameDataResponse.events || [])) {
+                            if (!sameId(event.id, GAME_ID)) continue;
                             const comp = event.competitions?.[0];
                             if (!comp) continue;
                             const status = comp.status?.type?.shortDetail || comp.status?.type?.detail || '';
                             const home = comp.competitors?.find(c => c.homeAway === 'home') || comp.competitors?.[0];
                             const away = comp.competitors?.find(c => c.homeAway === 'away') || comp.competitors?.[1];
                             if (!home || !away) continue;
-                            
+
                             gameData = {
                                 id: event.id,
-                                league: event.leagues?.[0]?.name || (LEAGUE_KEY === 'ncaa_mb' ? 'NCAA Men' : LEAGUE_KEY === 'ncaa_wb' ? 'NCAA Women' : 'NBA'),
+                                league: event.leagues?.[0]?.name || leagueMeta.label,
                                 league_key: LEAGUE_KEY,
-                                sport: 'basketball',
-                                league_slug: LEAGUE_KEY,
+                                sport: leagueMeta.sport,
+                                league_slug: leagueMeta.slug,
                                 date_label: new Date(event.date).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' }),
                                 status: status,
-                                completed: comp.status?.type?.completed || false,
+                                completed: !!comp.status?.type?.completed,
                                 fullCompetition: comp,
                                 away: {
                                     name: away.team?.displayName,
@@ -376,7 +391,8 @@
                                     record: away.records?.[0]?.summary || '0-0',
                                     score: away.score || '0',
                                     id: away.team?.id,
-                                    rank: normalizeRank(away.curatedRank?.current || away.rank)
+                                    rank: normalizeRank(away.curatedRank?.current || away.rank),
+                                    league: LEAGUE_KEY
                                 },
                                 home: {
                                     name: home.team?.displayName,
@@ -385,7 +401,8 @@
                                     record: home.records?.[0]?.summary || '0-0',
                                     score: home.score || '0',
                                     id: home.team?.id,
-                                    rank: normalizeRank(home.curatedRank?.current || home.rank)
+                                    rank: normalizeRank(home.curatedRank?.current || home.rank),
+                                    league: LEAGUE_KEY
                                 }
                             };
                             const local = formatLocalDateTime(event.date);
@@ -393,34 +410,35 @@
                             console.log('✅ Detailed game data fetched from ESPN API');
                             break;
                         }
+                    } catch (e) {
+                        console.log('⚠️ ESPN API failed, trying scraped data:', e);
                     }
-                } catch (e) {
-                    console.log('⚠️ ESPN API failed, trying scraped data:', e);
                 }
-                
-                // If ESPN didn't have the game, try to get it from scraped data
+
+                // If ESPN didn't have the game, try scraped data
                 if (!gameData) {
                     console.log('🔄 Game not found in ESPN API, trying scraped data');
                     try {
-                        const scrapedRes = await fetch('data/scores.json');
+                        const scrapedRes = await fetch('data/scores.json?t=' + Date.now());
                         const scrapedData = await scrapedRes.json();
-                        
-                        // Search through all dates in scraped data
+
                         for (const dateKey in scrapedData) {
                             const games = scrapedData[dateKey];
-                            if (Array.isArray(games)) {
-                                const foundGame = games.find(g => g.id === GAME_ID);
-                                if (foundGame) {
-                                    console.log('✅ Found game in scraped data:', foundGame);
-                                    gameData = {
-                                        ...foundGame,
-                                        league: foundGame.league || 'NBA',
-                                        date_label: foundGame.date_label || new Date(foundGame.date || Date.now()).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' })
-                                    };
-                                    const local = formatLocalDateTime(foundGame.date);
-                                    if (local?.time) gameData.start_local = local.time;
-                                    break;
-                                }
+                            if (!Array.isArray(games)) continue;
+                            const foundGame = games.find(g => sameId(g.id, GAME_ID));
+                            if (foundGame) {
+                                console.log('✅ Found game in scraped data:', foundGame);
+                                gameData = {
+                                    ...foundGame,
+                                    league: foundGame.league || leagueMeta.label,
+                                    league_key: foundGame.league_key || LEAGUE_KEY,
+                                    date_label: foundGame.date_label || new Date(foundGame.date || Date.now()).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' })
+                                };
+                                if (gameData.home) gameData.home.league = gameData.league_key;
+                                if (gameData.away) gameData.away.league = gameData.league_key;
+                                const local = formatLocalDateTime(foundGame.date);
+                                if (local?.time) gameData.start_local = local.time;
+                                break;
                             }
                         }
                     } catch (e) {
@@ -429,22 +447,20 @@
                 }
 
                 if (gameData) {
-                    // Check if scores changed
-                    const currentHomeScore = parseInt(gameData.home.score);
-                    const currentAwayScore = parseInt(gameData.away.score);
-                    
+                    const currentHomeScore = parseInt(gameData.home.score, 10) || 0;
+                    const currentAwayScore = parseInt(gameData.away.score, 10) || 0;
+
                     if (lastScores.home !== currentHomeScore || lastScores.away !== currentAwayScore) {
                         console.log(`📊 SCORES CHANGED: ${lastScores.away}-${lastScores.home} → ${currentAwayScore}-${currentHomeScore}`);
                         lastScores = { home: currentHomeScore, away: currentAwayScore };
                     } else {
                         console.log(`📊 Scores unchanged: ${currentAwayScore}-${currentHomeScore}`);
                     }
-                    
+
                     updateGameDisplay(gameData);
-                    
-                    // Set up live updates only for live ESPN games
-                    const isLiveGame = isLiveStatus(gameData.status);
-                    
+
+                    // Only poll while the game is actually in progress
+                    const isLiveGame = !gameData.completed && isLiveStatus(gameData.status);
                     if (isLiveGame) {
                         startLiveUpdates();
                     } else {
