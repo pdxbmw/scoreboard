@@ -68,83 +68,115 @@
         .status-display.live { background: #ff4444; color: white; }
         .rank-badge { display: inline-block; background: transparent; color: #999; border-radius: 4px; padding: 0 2px; font-size: 0.7rem; font-weight: 500; margin-right: 2px; vertical-align: baseline; letter-spacing: 0; }
         
-        .teams-score {
-            display: grid; grid-template-columns: 1fr auto 1fr; gap: 30px; align-items: center;
+        /* Stacked matchup — read top to bottom */
+        .matchup { display: flex; flex-direction: column; gap: 8px; }
+        .team-row {
+            display: grid;
+            grid-template-columns: 48px 52px minmax(0, 1fr) auto;
+            align-items: center;
+            gap: 12px;
+            width: 100%;
+            padding: 12px 10px;
+            border: none;
+            border-radius: 10px;
+            background: transparent;
+            text-align: left;
+            cursor: pointer;
+            font: inherit;
+            color: inherit;
+            transition: background 0.15s;
         }
-        .team-score-card {
-            text-align: center; cursor: pointer; transition: transform 0.2s;
+        .team-row:hover { background: rgba(0,0,0,0.04); }
+        .team-row.winner .team-name,
+        .team-row.winner .team-score { font-weight: 700; }
+        .team-row.loser { opacity: 0.72; }
+        .team-side {
+            font-size: 0.68rem; font-weight: 700; color: #888;
+            text-transform: uppercase; letter-spacing: 0.06em;
         }
-        .team-score-card:hover { transform: translateY(-2px); }
-        .team-label {
-            font-size: 0.7rem; font-weight: bold; color: #666; 
-            margin-bottom: 5px; text-transform: uppercase; letter-spacing: 1px;
+        .team-logo { width: 48px; height: 48px; object-fit: contain; }
+        .team-meta { min-width: 0; }
+        .team-name {
+            font-size: 1.15rem; font-weight: 600; line-height: 1.2;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
         }
-        .team-logo { width: 80px; height: 80px; margin-bottom: 10px; }
-        .team-name { font-size: 1.1rem; font-weight: 600; margin-bottom: 5px; }
-        .team-record { font-size: 0.8rem; color: #888; margin-bottom: 10px; }
-        .team-score { 
-            font-size: 2.5rem; 
-            font-weight: bold; 
-            color: #333; 
-            line-height: 1;
-            margin: 10px 0;
-            white-space: nowrap;
+        .team-record { font-size: 0.85rem; color: #888; margin-top: 2px; }
+        .team-score {
+            font-size: 2rem; font-weight: 700; color: #222;
+            line-height: 1; min-width: 2.4ch; text-align: right;
+            font-variant-numeric: tabular-nums;
         }
-        .team-score.live { color: #000; }
-        
-        .score-divider {
-            font-size: 1.5rem; font-weight: bold; color: #666;
-        }
-        
-        /* Team Stats Side by Side */
-        .team-stats-container {
-            display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin: 20px 0;
-        }
-        .team-stats-section {
-            display: flex; flex-direction: column; gap: 15px;
-            --team-color: #e8e8e8;
+        .team-score.live { color: #c62828; }
+
+        /* Single-column comparison cards */
+        .compare-stack {
+            display: flex; flex-direction: column; gap: 16px; margin: 20px 0;
         }
         .stats-card {
-            background: white; border-radius: 12px; padding: 20px;
+            background: white; border-radius: 12px; padding: 18px 18px 14px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.08);
             border: 1px solid #f2f2f2;
-            border-bottom: 3px solid var(--team-color);
         }
+        .stats-card.is-empty { display: none; }
         .stats-header {
-            font-size: 1.1rem; font-weight: 600; margin-bottom: 15px;
+            font-size: 1.05rem; font-weight: 600; margin-bottom: 12px;
             padding-bottom: 10px; border-bottom: 1px solid #e8e8e8;
             display: flex; align-items: center; justify-content: space-between; gap: 8px;
         }
         .stats-header .stat-title { flex: 1; }
-        .stats-header img {
-            width: 20px; height: 20px; object-fit: contain; border-radius: 4px; background: #f4f4f4; padding: 2px;
+        .team-chips { display: flex; align-items: center; gap: 6px; }
+        .team-chips img {
+            width: 22px; height: 22px; object-fit: contain;
+            border-radius: 4px; background: #f4f4f4; padding: 2px;
         }
-        .stat-row {
-            display: flex; justify-content: space-between; padding: 8px 0;
+
+        .compare-row {
+            display: grid;
+            grid-template-columns: minmax(3.5rem, 1fr) minmax(0, 1.4fr) minmax(3.5rem, 1fr);
+            gap: 8px;
+            align-items: center;
+            padding: 10px 0;
             border-bottom: 1px solid #f0f0f0;
         }
-        .stat-row:last-child { border-bottom: none; }
-        .stat-label { color: #666; font-size: 0.9rem; }
-        .stat-value { font-weight: 600; font-size: 0.9rem; }
-        
-        /* Play by Play */
-        .play-by-play {
-            background: white; border-radius: 12px; padding: 20px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        .compare-row:last-child { border-bottom: none; }
+        .compare-label {
+            text-align: center; color: #666; font-size: 0.82rem; line-height: 1.25;
         }
-        .play-item {
-            display: flex; align-items: center; padding: 12px 0;
+        .compare-value {
+            font-weight: 600; font-size: 0.95rem;
+            font-variant-numeric: tabular-nums;
+        }
+        .compare-value.away { text-align: left; }
+        .compare-value.home { text-align: right; }
+        .compare-value.lead { color: #111; }
+        .compare-value.trail { color: #999; font-weight: 500; }
+
+        .leader-block {
+            padding: 12px 0;
             border-bottom: 1px solid #f0f0f0;
         }
-        .play-item:last-child { border-bottom: none; }
-        .play-time {
-            font-weight: 600; color: #666; width: 60px; font-size: 0.9rem;
+        .leader-block:last-child { border-bottom: none; }
+        .leader-cat {
+            font-size: 0.78rem; font-weight: 700; color: #888;
+            text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 8px;
         }
-        .play-text { flex: 1; margin-left: 15px; font-size: 0.9rem; line-height: 1.4; }
-        .play-score {
-            font-weight: bold; color: #333; width: 50px; text-align: right;
+        .leader-line {
+            display: grid;
+            grid-template-columns: 22px minmax(0, 1fr) auto;
+            gap: 8px;
+            align-items: center;
+            padding: 4px 0;
         }
-        
+        .leader-line img { width: 20px; height: 20px; object-fit: contain; }
+        .leader-name {
+            font-size: 0.92rem; font-weight: 500;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .leader-stat {
+            font-size: 0.85rem; color: #666; font-variant-numeric: tabular-nums;
+            text-align: right; white-space: nowrap;
+        }
+
         .empty-state {
             text-align: center; color: #777; font-size: 0.95rem; padding: 8px 4px 2px;
         }
@@ -156,16 +188,14 @@
             color: #555; font-size: 0.95rem; text-align: center;
         }
         .pregame-banner.visible { display: block; }
-        .stats-card.is-empty { display: none; }
-        .team-stats-section.pregame-mode .stats-card.pregame-hide { display: none; }
 
         /* Responsive */
         @media (max-width: 768px) {
-            .team-stats-container { grid-template-columns: 1fr; }
-            .team-stats-section { gap: 12px; margin-bottom: 12px; }
-            .teams-score { grid-template-columns: 1fr auto 1fr; gap: 16px; text-align: center; }
-            .team-logo { width: 64px; height: 64px; }
-            .team-score { font-size: 2.2rem; }
+            .score-section { padding: 18px 14px; }
+            .team-row { grid-template-columns: 40px 44px minmax(0, 1fr) auto; gap: 10px; padding: 10px 4px; }
+            .team-logo { width: 44px; height: 44px; }
+            .team-name { font-size: 1.05rem; }
+            .team-score { font-size: 1.75rem; }
             .header-content {
                 grid-template-columns: 1fr 1fr;
                 grid-template-areas:
@@ -178,16 +208,18 @@
 
         @media (prefers-color-scheme: dark) {
             body { background: #0f1113; color: #e8e8e8; }
-            .score-section, .stats-card, .play-by-play, .pregame-banner { background: #1c1f24; box-shadow: 0 2px 8px rgba(0,0,0,0.35); }
+            .score-section, .stats-card, .pregame-banner { background: #1c1f24; box-shadow: 0 2px 8px rgba(0,0,0,0.35); }
             .score-header { border-bottom-color: #333; }
-            .game-info, .team-label, .stat-label, .empty-state { color: #aaa; }
-            .empty-state strong, .team-name, .team-score, .stat-value, .score-divider { color: #f0f0f0; }
-            .team-record { color: #9a9a9a; }
+            .game-info, .team-side, .team-record, .compare-label, .leader-cat, .leader-stat, .empty-state { color: #aaa; }
+            .empty-state strong, .team-name, .team-score, .compare-value, .leader-name { color: #f0f0f0; }
+            .compare-value.lead { color: #fff; }
+            .compare-value.trail { color: #888; }
             .status-display { background: #2a2f36; color: #ddd; }
-            .stats-header { border-bottom-color: #333; }
-            .stat-row { border-bottom-color: #2a2f36; }
+            .stats-header, .compare-row, .leader-block { border-bottom-color: #2a2f36; }
             .stats-card { border-color: #2a2f36; }
-            .stats-header img { background: #2a2f36; }
+            .team-chips img { background: #2a2f36; }
+            .team-row:hover { background: rgba(255,255,255,0.04); }
+            .team-row.loser { opacity: 0.62; }
             .pregame-banner { color: #ccc; }
         }
     </style>
@@ -218,65 +250,69 @@
                 </div>
             </div>
             
-            <div class="teams-score">
-                <div class="team-score-card" id="awayTeam" onclick="goToTeam('away')">
-                    <div class="team-label">AWAY</div>
-                    <img id="awayLogo" src="" alt="Away Team" class="team-logo">
-                    <div class="team-name" id="awayName">Away Team</div>
-                    <div class="team-record" id="awayRecord">0-0</div>
-                    <div class="team-score" id="awayScore">0</div>
-                </div>
-                
-                <div class="score-divider">@</div>
-                
-                <div class="team-score-card" id="homeTeam" onclick="goToTeam('home')">
-                    <div class="team-label">HOME</div>
-                    <img id="homeLogo" src="" alt="Home Team" class="team-logo">
-                    <div class="team-name" id="homeName">Home Team</div>
-                    <div class="team-record" id="homeRecord">0-0</div>
-                    <div class="team-score" id="homeScore">0</div>
-                </div>
+            <div class="matchup">
+                <button type="button" class="team-row" id="awayTeam" onclick="goToTeam('away')">
+                    <span class="team-side">Away</span>
+                    <img id="awayLogo" src="" alt="" class="team-logo">
+                    <div class="team-meta">
+                        <div class="team-name" id="awayName">Away Team</div>
+                        <div class="team-record" id="awayRecord"></div>
+                    </div>
+                    <div class="team-score" id="awayScore">—</div>
+                </button>
+                <button type="button" class="team-row" id="homeTeam" onclick="goToTeam('home')">
+                    <span class="team-side">Home</span>
+                    <img id="homeLogo" src="" alt="" class="team-logo">
+                    <div class="team-meta">
+                        <div class="team-name" id="homeName">Home Team</div>
+                        <div class="team-record" id="homeRecord"></div>
+                    </div>
+                    <div class="team-score" id="homeScore">—</div>
+                </button>
             </div>
         </div>
         
-        <!-- Team Stats Side by Side -->
-        <div class="team-stats-container">
-            <div class="team-stats-section">
-                <div class="stats-card">
-                    <div class="stats-header"><span class="stat-title">Team Leaders</span></div>
-                    <div id="awayTeamLeaders">Loading...</div>
+        <!-- Comparison stats: one column, both teams per row -->
+        <div class="compare-stack">
+            <div class="stats-card" id="leadersCard">
+                <div class="stats-header">
+                    <span class="stat-title" id="leadersTitle">Leaders</span>
+                    <div class="team-chips">
+                        <img id="leadersAwayLogo" alt="">
+                        <img id="leadersHomeLogo" alt="">
+                    </div>
                 </div>
-                <div class="stats-card">
-                    <div class="stats-header"><span class="stat-title">Game Statistics</span></div>
-                    <div id="awayGameStats">Loading...</div>
-                </div>
-                <div class="stats-card pregame-hide">
-                    <div class="stats-header"><span class="stat-title">Advanced Stats</span></div>
-                    <div id="awayAdvancedStats">Loading...</div>
-                </div>
-                <div class="stats-card pregame-hide">
-                    <div class="stats-header"><span class="stat-title">Team Stats</span></div>
-                    <div id="awayTeamStats">Loading...</div>
-                </div>
+                <div id="compareLeaders">Loading...</div>
             </div>
-            
-            <div class="team-stats-section">
-                <div class="stats-card">
-                    <div class="stats-header"><span class="stat-title">Team Leaders</span></div>
-                    <div id="homeTeamLeaders">Loading...</div>
+            <div class="stats-card" id="statsCard">
+                <div class="stats-header">
+                    <span class="stat-title" id="statsTitle">Team Comparison</span>
+                    <div class="team-chips">
+                        <img id="statsAwayLogo" alt="">
+                        <img id="statsHomeLogo" alt="">
+                    </div>
                 </div>
-                <div class="stats-card">
-                    <div class="stats-header"><span class="stat-title">Game Statistics</span></div>
-                    <div id="homeGameStats">Loading...</div>
+                <div id="compareStats">Loading...</div>
+            </div>
+            <div class="stats-card" id="advancedCard">
+                <div class="stats-header">
+                    <span class="stat-title">Advanced</span>
+                    <div class="team-chips">
+                        <img id="advancedAwayLogo" alt="">
+                        <img id="advancedHomeLogo" alt="">
+                    </div>
                 </div>
-                <div class="stats-card pregame-hide">
-                    <div class="stats-header"><span class="stat-title">Advanced Stats</span></div>
-                    <div id="homeAdvancedStats">Loading...</div>
+                <div id="compareAdvanced">Loading...</div>
+            </div>
+            <div class="stats-card" id="linescoreCard">
+                <div class="stats-header">
+                    <span class="stat-title">Scoring</span>
+                    <div class="team-chips">
+                        <img id="linescoreAwayLogo" alt="">
+                        <img id="linescoreHomeLogo" alt="">
+                    </div>
                 </div>
-                <div class="stats-card pregame-hide">
-                    <div class="stats-header"><span class="stat-title">Team Stats</span></div>
-                    <div id="homeTeamStats">Loading...</div>
-                </div>
+                <div id="compareLinescore">Loading...</div>
             </div>
         </div>
     </div>
@@ -356,9 +392,8 @@
             return `<div class="empty-state"><strong>${title}</strong>${detail || ''}</div>`;
         }
 
-        function setCardVisibility(containerId, hasContent) {
-            const el = document.getElementById(containerId);
-            const card = el?.closest('.stats-card');
+        function setCardVisibility(cardId, hasContent) {
+            const card = document.getElementById(cardId);
             if (card) card.classList.toggle('is-empty', !hasContent);
         }
 
@@ -372,38 +407,59 @@
             return teams.find(t => String(t?.team?.id) === String(teamId))?.statistics || [];
         }
 
-        function renderLeaderRows(categories) {
-            let html = '';
-            (categories || []).forEach(leaderCategory => {
-                const leader = leaderCategory.leaders?.[0];
-                if (!leader) return;
-                html += `
-                    <div class="stat-row">
-                        <span class="stat-label">${leader.athlete?.displayName || 'Unknown'}</span>
-                        <span class="stat-value">${leader.displayValue} ${leaderCategory.displayName || ''}</span>
-                    </div>
-                `;
-            });
-            return html;
+        function setCompareChips(prefix, game) {
+            const away = document.getElementById(`${prefix}AwayLogo`);
+            const home = document.getElementById(`${prefix}HomeLogo`);
+            if (away) { away.src = game.away.logo || ''; away.alt = shortTeamName(game.away); }
+            if (home) { home.src = game.home.logo || ''; home.alt = shortTeamName(game.home); }
         }
 
-        function renderStatRows(stats, preferredNames = []) {
-            let html = '';
-            const list = preferredNames.length
-                ? preferredNames.map(name => (stats || []).find(s => s.name === name)).filter(Boolean)
-                : (stats || []);
-            list.forEach(stat => {
-                const label = stat.label || stat.displayName || stat.name;
-                const value = stat.displayValue ?? stat.value;
-                if (!label || value == null || value === '') return;
-                html += `
-                    <div class="stat-row">
-                        <span class="stat-label">${label}</span>
-                        <span class="stat-value">${value}</span>
-                    </div>
-                `;
+        function numericish(value) {
+            if (value == null || value === '') return null;
+            const cleaned = String(value).replace(/[^0-9.\-]/g, '');
+            const n = parseFloat(cleaned);
+            return Number.isFinite(n) ? n : null;
+        }
+
+        function compareValueClass(side, awayVal, homeVal) {
+            const a = numericish(awayVal);
+            const h = numericish(homeVal);
+            if (a == null || h == null || a === h) return '';
+            const awayLeads = a > h;
+            if (side === 'away') return awayLeads ? 'lead' : 'trail';
+            return awayLeads ? 'trail' : 'lead';
+        }
+
+        function renderCompareStatRow(label, awayVal, homeVal) {
+            if ((awayVal == null || awayVal === '') && (homeVal == null || homeVal === '')) return '';
+            const awayClass = compareValueClass('away', awayVal, homeVal);
+            const homeClass = compareValueClass('home', awayVal, homeVal);
+            return `
+                <div class="compare-row">
+                    <div class="compare-value away ${awayClass}">${awayVal ?? '—'}</div>
+                    <div class="compare-label">${label}</div>
+                    <div class="compare-value home ${homeClass}">${homeVal ?? '—'}</div>
+                </div>
+            `;
+        }
+
+        function pickStats(stats, preferredNames = []) {
+            if (!stats?.length) return [];
+            if (!preferredNames.length) return stats;
+            return preferredNames.map(name => stats.find(s => s.name === name)).filter(Boolean);
+        }
+
+        function leaderMap(categories) {
+            const map = new Map();
+            (categories || []).forEach(cat => {
+                const key = cat.name || cat.displayName;
+                if (!key || !cat.leaders?.[0]) return;
+                map.set(key, {
+                    label: cat.displayName || cat.name,
+                    leader: cat.leaders[0]
+                });
             });
-            return html;
+            return map;
         }
 
         async function loadGameData() {
@@ -642,11 +698,10 @@
             const pregameBanner = document.getElementById('pregameBanner');
             const isPregame = !!game.isPregame && !game.completed && !isLiveStatus(game.status);
             if (pregameBanner) pregameBanner.classList.toggle('visible', isPregame);
-            document.querySelectorAll('.team-stats-section').forEach(section => {
-                section.classList.toggle('pregame-mode', isPregame);
-            });
             
             // Update team information
+            const awayRow = document.getElementById('awayTeam');
+            const homeRow = document.getElementById('homeTeam');
             const awayLogo = document.getElementById('awayLogo');
             const homeLogo = document.getElementById('homeLogo');
             const awayName = document.getElementById('awayName');
@@ -661,7 +716,6 @@
                 awayLogo.setAttribute('data-team-id', game.away.id);
                 awayLogo.setAttribute('data-team-color', AWAY_COLOR);
                 awayLogo.setAttribute('data-team-league', game.league_key || LEAGUE_KEY || 'nba');
-                console.log('🔴 Away team:', game.away.name, 'Color:', AWAY_COLOR);
             }
             const awayRank = normalizeRank(game.away?.rank);
             const homeRank = normalizeRank(game.home?.rank);
@@ -673,9 +727,6 @@
             }
             if (awayScore) {
                 awayScore.innerText = (isPregame && (game.away.score == null || game.away.score === '' || game.away.score === '0')) ? '—' : (game.away.score ?? '0');
-                console.log('🔴 Set away score to:', game.away.score);
-            } else {
-                console.error('❌ Away score element not found!');
             }
             
             if (homeLogo) {
@@ -683,7 +734,6 @@
                 homeLogo.setAttribute('data-team-id', game.home.id);
                 homeLogo.setAttribute('data-team-color', HOME_COLOR);
                 homeLogo.setAttribute('data-team-league', game.league_key || LEAGUE_KEY || 'nba');
-                console.log('🔴 Home team:', game.home.name, 'Color:', HOME_COLOR);
             }
             if (homeName) homeName.innerHTML = `${homeRank ? `<span class="rank-badge">#${homeRank}</span>` : ''}${shortTeamName(game.home)}`;
             if (homeRecord) {
@@ -692,9 +742,18 @@
             }
             if (homeScore) {
                 homeScore.innerText = (isPregame && (game.home.score == null || game.home.score === '' || game.home.score === '0')) ? '—' : (game.home.score ?? '0');
-                console.log('🔴 Set home score to:', game.home.score);
-            } else {
-                console.error('❌ Home score element not found!');
+            }
+
+            const awayPts = parseInt(game.away.score, 10);
+            const homePts = parseInt(game.home.score, 10);
+            if (awayRow && homeRow) {
+                awayRow.classList.remove('winner', 'loser');
+                homeRow.classList.remove('winner', 'loser');
+                if (game.completed && Number.isFinite(awayPts) && Number.isFinite(homePts) && awayPts !== homePts) {
+                    const awayWon = awayPts > homePts;
+                    awayRow.classList.add(awayWon ? 'winner' : 'loser');
+                    homeRow.classList.add(awayWon ? 'loser' : 'winner');
+                }
             }
             
             // Update status
@@ -751,183 +810,195 @@
                 console.log('Game is scheduled');
             }
             
-            // Update all team-specific stats sections
-            updateAwayTeamLeaders(game);
-            updateHomeTeamLeaders(game);
-            updateAwayGameStats(game);
-            updateHomeGameStats(game);
-            updateAwayAdvancedStats(game);
-            updateHomeAdvancedStats(game);
-            updateAwayTeamStats(game);
-            updateHomeTeamStats(game);
-            
-            // Update header colors with team colors
-            console.log('🎨 About to call updateHeaderColors()...');
+            updateCompareLeaders(game);
+            updateCompareStats(game);
+            updateCompareAdvanced(game);
+            updateCompareLinescore(game);
             updateHeaderColors();
-            console.log('🎨 updateHeaderColors() call completed!');
         }
 
-        function setHeaderLogo(containerId, logo, title) {
-            const statsContainer = document.getElementById(containerId);
-            if (!statsContainer) return;
-            const header = statsContainer.previousElementSibling;
-            if (header && header.classList.contains('stats-header')) {
-                header.innerHTML = `<span class="stat-title">${title}</span><img src="${logo}" alt="${title}">`;
-            }
-        }
+        function updateCompareLeaders(game) {
+            const container = document.getElementById('compareLeaders');
+            const titleEl = document.getElementById('leadersTitle');
+            if (!container) return;
+            if (titleEl) titleEl.textContent = game.isPregame ? 'Season Leaders' : 'Game Leaders';
+            setCompareChips('leaders', game);
 
-        function setCardColor(containerId, color) {
-            const statsContainer = document.getElementById(containerId);
-            if (!statsContainer) return;
-            const card = statsContainer.parentElement;
-            if (card && card.classList.contains('stats-card')) {
-                card.style.setProperty('--team-color', color || '#e8e8e8');
-            }
-        }
-        
-        function updateTeamLeaders(side, game) {
-            const containerId = side === 'away' ? 'awayTeamLeaders' : 'homeTeamLeaders';
-            const team = game[side];
-            const leadersContainer = document.getElementById(containerId);
-            if (!leadersContainer) return;
-            const title = game.isPregame ? 'Season Leaders' : 'Team Leaders';
-            setHeaderLogo(containerId, team.logo, title);
-            setCardColor(containerId, team.color);
+            const awayCats = game.fullCompetition?.competitors?.find(c => c.homeAway === 'away')?.leaders
+                || findSummaryLeaders(game, game.away.id);
+            const homeCats = game.fullCompetition?.competitors?.find(c => c.homeAway === 'home')?.leaders
+                || findSummaryLeaders(game, game.home.id);
+            const awayMap = leaderMap(awayCats);
+            const homeMap = leaderMap(homeCats);
+            const keys = [...new Set([...awayMap.keys(), ...homeMap.keys()])];
 
-            const competitor = game.fullCompetition?.competitors?.find(c => c.homeAway === side);
-            let html = renderLeaderRows(competitor?.leaders);
-            if (!html) html = renderLeaderRows(findSummaryLeaders(game, team.id));
+            let html = '';
+            keys.forEach(key => {
+                const away = awayMap.get(key);
+                const home = homeMap.get(key);
+                const label = away?.label || home?.label || key;
+                const awayLeader = away?.leader;
+                const homeLeader = home?.leader;
+                if (!awayLeader && !homeLeader) return;
+                html += `<div class="leader-block"><div class="leader-cat">${label}</div>`;
+                if (awayLeader) {
+                    html += `
+                        <div class="leader-line">
+                            <img src="${game.away.logo || ''}" alt="">
+                            <span class="leader-name">${awayLeader.athlete?.displayName || '—'}</span>
+                            <span class="leader-stat">${awayLeader.displayValue || ''}</span>
+                        </div>
+                    `;
+                }
+                if (homeLeader) {
+                    html += `
+                        <div class="leader-line">
+                            <img src="${game.home.logo || ''}" alt="">
+                            <span class="leader-name">${homeLeader.athlete?.displayName || '—'}</span>
+                            <span class="leader-stat">${homeLeader.displayValue || ''}</span>
+                        </div>
+                    `;
+                }
+                html += `</div>`;
+            });
 
             if (html) {
-                leadersContainer.innerHTML = html;
-                setCardVisibility(containerId, true);
+                container.innerHTML = html;
+                setCardVisibility('leadersCard', true);
             } else {
-                leadersContainer.innerHTML = emptyStateHtml(
+                container.innerHTML = emptyStateHtml(
                     game.isPregame ? 'Season leaders unavailable' : 'Leaders not available yet',
-                    game.isPregame ? 'Check back closer to kickoff.' : 'They usually appear once the game is underway.'
+                    'They usually appear once the game is underway.'
                 );
-                setCardVisibility(containerId, !game.isPregame);
+                setCardVisibility('leadersCard', true);
             }
         }
 
-        function updateAwayTeamLeaders(game) { updateTeamLeaders('away', game); }
-        function updateHomeTeamLeaders(game) { updateTeamLeaders('home', game); }
+        function updateCompareStats(game) {
+            const container = document.getElementById('compareStats');
+            const titleEl = document.getElementById('statsTitle');
+            if (!container) return;
+            if (titleEl) titleEl.textContent = game.isPregame ? 'Season Averages' : 'Team Comparison';
+            setCompareChips('stats', game);
 
-        function updateGameStats(side, game) {
-            const containerId = side === 'away' ? 'awayGameStats' : 'homeGameStats';
-            const team = game[side];
-            const statsContainer = document.getElementById(containerId);
-            if (!statsContainer) return;
-            const title = game.isPregame ? 'Season Averages' : 'Game Statistics';
-            setHeaderLogo(containerId, team.logo, title);
-            setCardColor(containerId, team.color);
-
-            const competitor = game.fullCompetition?.competitors?.find(c => c.homeAway === side);
-            const basketballKeys = ['fieldGoalPct', 'threePointPct', 'freeThrowPct', 'rebounds', 'assists'];
+            const basketballKeys = ['fieldGoalPct', 'threePointPct', 'freeThrowPct', 'rebounds', 'assists', 'points'];
             const footballKeys = [
                 'totalPointsPerGame', 'yardsPerGame', 'passingYardsPerGame', 'rushingYardsPerGame',
                 'totalPointsPerGameAllowed', 'yardsPerGameAllowed', 'passingYardsPerGameAllowed', 'rushingYardsPerGameAllowed'
             ];
+            const awayComp = game.fullCompetition?.competitors?.find(c => c.homeAway === 'away');
+            const homeComp = game.fullCompetition?.competitors?.find(c => c.homeAway === 'home');
+
+            let awayStats = awayComp?.statistics || [];
+            let homeStats = homeComp?.statistics || [];
+            if (!awayStats.length && !homeStats.length) {
+                awayStats = findBoxscoreStats(game, game.away.id);
+                homeStats = findBoxscoreStats(game, game.home.id);
+            }
+
+            let preferred = footballKeys;
+            if (pickStats(awayStats, basketballKeys).length || pickStats(homeStats, basketballKeys).length) {
+                preferred = basketballKeys;
+            } else if (!(pickStats(awayStats, footballKeys).length || pickStats(homeStats, footballKeys).length)) {
+                preferred = [];
+            }
+
+            const awayPicked = pickStats(awayStats, preferred);
+            const homePicked = pickStats(homeStats, preferred);
+            const names = preferred.length
+                ? preferred
+                : [...new Set([...awayPicked, ...homePicked].map(s => s.name))];
 
             let html = '';
-            if (competitor?.statistics?.length) {
-                html = renderStatRows(competitor.statistics, basketballKeys);
-                if (!html) html = renderStatRows(competitor.statistics, footballKeys);
-                if (!html) html = renderStatRows(competitor.statistics);
-            }
-            if (!html) {
-                const seasonStats = findBoxscoreStats(game, team.id);
-                html = renderStatRows(seasonStats, footballKeys);
-                if (!html) html = renderStatRows(seasonStats, basketballKeys);
-                if (!html) html = renderStatRows(seasonStats);
-            }
+            names.forEach(name => {
+                const a = awayStats.find(s => s.name === name);
+                const h = homeStats.find(s => s.name === name);
+                const label = a?.label || a?.displayName || h?.label || h?.displayName || name;
+                html += renderCompareStatRow(label, a?.displayValue ?? a?.value, h?.displayValue ?? h?.value);
+            });
 
             if (html) {
-                statsContainer.innerHTML = html;
-                setCardVisibility(containerId, true);
+                container.innerHTML = html;
+                setCardVisibility('statsCard', true);
             } else {
-                statsContainer.innerHTML = emptyStateHtml(
+                container.innerHTML = emptyStateHtml(
                     game.isPregame ? 'Season stats unavailable' : 'Stats not available yet',
-                    game.isPregame ? 'We’ll show team averages when ESPN publishes them.' : 'Live box score stats will show up after tip/kickoff.'
+                    'Live comparison stats will show after tip/kickoff.'
                 );
-                setCardVisibility(containerId, !game.isPregame);
+                setCardVisibility('statsCard', true);
             }
         }
 
-        function updateAwayGameStats(game) { updateGameStats('away', game); }
-        function updateHomeGameStats(game) { updateGameStats('home', game); }
-        
-        function updateAdvancedStats(side, game) {
-            const containerId = side === 'away' ? 'awayAdvancedStats' : 'homeAdvancedStats';
-            const team = game[side];
-            const statsContainer = document.getElementById(containerId);
-            if (!statsContainer) return;
-            setHeaderLogo(containerId, team.logo, 'Advanced Stats');
-            setCardColor(containerId, team.color);
+        function updateCompareAdvanced(game) {
+            const container = document.getElementById('compareAdvanced');
+            if (!container) return;
+            setCompareChips('advanced', game);
 
-            const competitor = game.fullCompetition?.competitors?.find(c => c.homeAway === side);
-            const advancedStats = ['fieldGoalsAttempted', 'fieldGoalsMade', 'threePointFieldGoalsAttempted', 'threePointFieldGoalsMade', 'freeThrowsAttempted', 'freeThrowsMade'];
-            const html = competitor?.statistics ? renderStatRows(competitor.statistics, advancedStats) : '';
-            if (html) {
-                statsContainer.innerHTML = html;
-                setCardVisibility(containerId, true);
-            } else {
-                statsContainer.innerHTML = emptyStateHtml('Advanced stats not available', '');
-                setCardVisibility(containerId, false);
-            }
-        }
+            const keys = ['fieldGoalsAttempted', 'fieldGoalsMade', 'threePointFieldGoalsAttempted', 'threePointFieldGoalsMade', 'freeThrowsAttempted', 'freeThrowsMade'];
+            const awayStats = game.fullCompetition?.competitors?.find(c => c.homeAway === 'away')?.statistics || [];
+            const homeStats = game.fullCompetition?.competitors?.find(c => c.homeAway === 'home')?.statistics || [];
+            const labels = {
+                fieldGoalsAttempted: 'FG Attempts',
+                fieldGoalsMade: 'FG Made',
+                threePointFieldGoalsAttempted: '3PT Attempts',
+                threePointFieldGoalsMade: '3PT Made',
+                freeThrowsAttempted: 'FT Attempts',
+                freeThrowsMade: 'FT Made'
+            };
 
-        function updateAwayAdvancedStats(game) { updateAdvancedStats('away', game); }
-        function updateHomeAdvancedStats(game) { updateAdvancedStats('home', game); }
-
-        function updateTeamStats(side, game) {
-            const containerId = side === 'away' ? 'awayTeamStats' : 'homeTeamStats';
-            const team = game[side];
-            const statsContainer = document.getElementById(containerId);
-            if (!statsContainer) return;
-            setHeaderLogo(containerId, team.logo, 'Team Stats');
-            setCardColor(containerId, team.color);
-
-            const competitor = game.fullCompetition?.competitors?.find(c => c.homeAway === side);
             let html = '';
-            const record = extractRecord(competitor) || team.record;
-            if (record) {
-                html += `
-                    <div class="stat-row">
-                        <span class="stat-label">Record</span>
-                        <span class="stat-value">${record}</span>
-                    </div>
-                `;
-            }
-            if (competitor?.linescores?.length) {
-                const quarterScores = competitor.linescores.map(s => s.displayValue).join(', ');
-                html += `
-                    <div class="stat-row">
-                        <span class="stat-label">Quarter Scores</span>
-                        <span class="stat-value">${quarterScores}</span>
-                    </div>
-                `;
-            }
-            if (game.completed && competitor) {
-                html += `
-                    <div class="stat-row">
-                        <span class="stat-label">Winner</span>
-                        <span class="stat-value">${competitor.winner ? '✓' : ''}</span>
-                    </div>
-                `;
-            }
+            keys.forEach(name => {
+                const a = awayStats.find(s => s.name === name);
+                const h = homeStats.find(s => s.name === name);
+                if (!a && !h) return;
+                html += renderCompareStatRow(labels[name] || name, a?.displayValue, h?.displayValue);
+            });
 
             if (html) {
-                statsContainer.innerHTML = html;
-                setCardVisibility(containerId, true);
+                container.innerHTML = html;
+                setCardVisibility('advancedCard', true);
             } else {
-                statsContainer.innerHTML = emptyStateHtml('Team stats not available', '');
-                setCardVisibility(containerId, false);
+                container.innerHTML = '';
+                setCardVisibility('advancedCard', false);
             }
         }
 
-        function updateAwayTeamStats(game) { updateTeamStats('away', game); }
-        function updateHomeTeamStats(game) { updateTeamStats('home', game); }
+        function updateCompareLinescore(game) {
+            const container = document.getElementById('compareLinescore');
+            if (!container) return;
+            setCompareChips('linescore', game);
+
+            const awayComp = game.fullCompetition?.competitors?.find(c => c.homeAway === 'away');
+            const homeComp = game.fullCompetition?.competitors?.find(c => c.homeAway === 'home');
+            const awayLines = awayComp?.linescores || [];
+            const homeLines = homeComp?.linescores || [];
+            const periodCount = Math.max(awayLines.length, homeLines.length);
+
+            let html = '';
+            if (game.away.record || game.home.record) {
+                html += renderCompareStatRow('Record', game.away.record || '—', game.home.record || '—');
+            }
+            for (let i = 0; i < periodCount; i++) {
+                const label = periodCount > 4 && i >= 4 ? `OT${i - 3}` : `Q${i + 1}`;
+                html += renderCompareStatRow(
+                    label,
+                    awayLines[i]?.displayValue,
+                    homeLines[i]?.displayValue
+                );
+            }
+
+            if (html && periodCount > 0) {
+                container.innerHTML = html;
+                setCardVisibility('linescoreCard', true);
+            } else if (html && game.isPregame) {
+                // Records alone aren't worth a whole card during pregame
+                container.innerHTML = '';
+                setCardVisibility('linescoreCard', false);
+            } else {
+                container.innerHTML = '';
+                setCardVisibility('linescoreCard', false);
+            }
+        }
 
         function startLiveUpdates() {
             if (updateInterval) clearInterval(updateInterval);
@@ -948,31 +1019,14 @@
         loadGameData();
         
         function updateHeaderColors() {
-            console.log('🎨 updateHeaderColors() started!');
-            
-            const awayScore = document.getElementById('awayScore');
-            const homeScore = document.getElementById('homeScore');
-            console.log('🎨 Found elements - awayScore:', awayScore, 'homeScore:', homeScore);
-            
-            const awayColor = awayScore ? awayScore.getAttribute('data-team-color') : '#333333';
-            const homeColor = homeScore ? homeScore.getAttribute('data-team-color') : '#333333';
-            
-            console.log('🎨 Header colors - Away:', awayColor, 'Home:', homeColor);
-            
+            const awayLogo = document.getElementById('awayLogo');
+            const homeLogo = document.getElementById('homeLogo');
+            const awayColor = awayLogo?.getAttribute('data-team-color') || AWAY_COLOR || '#333333';
+            const homeColor = homeLogo?.getAttribute('data-team-color') || HOME_COLOR || '#333333';
             const header = document.querySelector('.game-header');
-            console.log('🎨 Found header element:', header);
-            
             if (header) {
-                // Use home team color as primary (70%) with away as accent (30%)
-                const gradient = `linear-gradient(135deg, ${awayColor}30 0%, ${homeColor} 100%)`;
-                console.log('🎨 Setting header gradient:', gradient);
-                header.style.background = gradient;
-                console.log('🎨 Header style set to:', header.style.background);
-            } else {
-                console.error('❌ Header element not found!');
+                header.style.background = `linear-gradient(135deg, ${awayColor} 0%, ${homeColor} 100%)`;
             }
-            
-            console.log('🎨 updateHeaderColors() completed!');
         }
         
         function goToTeam(teamType) {
