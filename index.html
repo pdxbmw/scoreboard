@@ -55,7 +55,6 @@
             line-height: 1;
         }
         .team-score.pending { color: #bbb; font-weight: 500; }
-        .team-score.live { color: #c62828; }
         /* Finals: keep the card readable, emphasize the winner, soften the loser */
         .card.completed .team-row.loser { opacity: 0.62; }
         .card.completed .team-row.loser img { filter: grayscale(0.15); }
@@ -64,11 +63,14 @@
         .card.completed .team-row.winner .record { color: #555; font-weight: 600; }
         .card.completed .team-row.winner .team-score { color: #111; font-weight: 700; }
         .card.completed .team-row.loser .team-score { color: #8a8a8a; font-weight: 500; }
-        .status { font-size: 0.78rem; color: #666; background: #f0f0f0; padding: 4px 10px; border-radius: 10px; white-space: nowrap; display: inline-block; }
+        .status {
+            font-size: 0.78rem; color: #666; background: #f0f0f0;
+            padding: 4px 10px; border-radius: 999px; white-space: nowrap; display: inline-block;
+        }
         .league-pill { font-size: 0.68rem; font-weight: 600; color: #555; padding: 3px 8px; border-radius: 999px; display: inline-flex; align-items: center; gap: 6px; letter-spacing: 0.2px; background: #f9f9f9; border: 1px solid #e0e0e0; }
         .league-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
-        .live { background: #ff4444; color: white; animation: pulse 2s infinite; }
-        .live-text { color: #fff; font-size: 0.85rem; font-weight: bold; }
+        .status.live { background: #ff4444; color: white; animation: pulse 2s infinite; }
+        .status.live .live-text { color: #fff; font-weight: 700; }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
         .bottom-nav { position: fixed; left: 0; right: 0; bottom: 0; width: 100%; background: #fff; box-shadow: 0 -2px 10px rgba(0,0,0,0.08); padding: 10px; display: flex; gap: 10px; z-index: 90; }
         .bottom-nav a { flex: 1; text-decoration: none; text-align: center; padding: 12px; border-radius: 12px; font-weight: 700; }
@@ -452,7 +454,7 @@
                 const badgeBg = hexToRgba(leagueMeta.color, 0.12);
                 const awayScoreDisplay = isScheduled ? '—' : awayScoreStr;
                 const homeScoreDisplay = isScheduled ? '—' : homeScoreStr;
-                const scoreClass = isScheduled ? 'pending' : (isLive ? 'live' : '');
+                const scoreClass = isScheduled ? 'pending' : '';
                 div.innerHTML = `
                     <div class="card-top">
                         <span class="league-pill" style="border-color:${leagueMeta.color}; background:${badgeBg}"><span class="league-dot" style="background:${leagueMeta.color}"></span>${leagueMeta.label}</span>
