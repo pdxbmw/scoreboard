@@ -23,18 +23,26 @@
         .filter-btn.no-dot.active { background: #444; border-color: #444; color: #fff; }
         .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 15px; padding: 20px; max-width: 1400px; margin: 0 auto; }
         .card { background: var(--card-bg); border-radius: 24px; padding: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); display: flex; flex-direction: column; align-items: center; cursor: pointer; }
-        .card.completed { opacity: 0.7; }
-        .card.completed .score { color: #666; }
-        .card.completed .status { background: #e8e8e8; color: #999; }
+        .card.completed .status { background: #e8e8e8; color: #777; }
         .matchup { display: flex; align-items: center; justify-content: space-between; width: 100%; }
-        .team { display: flex; flex-direction: column; align-items: center; flex: 1; cursor: pointer; } 
+        .team { display: flex; flex-direction: column; align-items: center; flex: 1; cursor: pointer; transition: opacity 0.15s ease, filter 0.15s ease; }
         .team img { width: 55px; height: 55px; object-fit: contain; }
-        .team-name { font-size: 0.85rem; margin-top: 5px; text-align: center; }
+        .team-name { font-size: 0.85rem; margin-top: 5px; text-align: center; color: #333; font-weight: 500; }
         .rank-badge { display: inline-block; background: transparent; color: #999; border-radius: 4px; padding: 0 2px; font-size: 0.7rem; font-weight: 500; margin-right: 2px; vertical-align: baseline; letter-spacing: 0; }
         .record { font-size: 0.75rem; color: #888; }
-        .score-board { text-align: center; flex: 0 0 85px; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 6px; }
-        .score { font-size: 1.8rem; font-weight: 600; color: #333; white-space: nowrap; }
+        .score-board { text-align: center; flex: 0 0 95px; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+        .score { font-size: 1.8rem; font-weight: 600; color: #333; white-space: nowrap; display: inline-flex; align-items: baseline; gap: 2px; }
+        .score .score-num { font: inherit; color: inherit; }
+        .score .score-sep { font: inherit; color: #bbb; font-weight: 500; padding: 0 1px; }
         .score.at-symbol { font-size: 1.2rem; letter-spacing: 1px; color: #c2c2c2; }
+        /* Finals: keep the card readable, emphasize the winner, soften the loser */
+        .card.completed .team.loser { opacity: 0.42; }
+        .card.completed .team.loser img { filter: grayscale(0.35); }
+        .card.completed .team.winner .team-name { font-weight: 700; color: #111; }
+        .card.completed .team.winner .rank-badge { color: #555; font-weight: 700; }
+        .card.completed .team.winner .record { color: #555; font-weight: 600; }
+        .card.completed .score .score-num.winner { color: #111; font-weight: 700; }
+        .card.completed .score .score-num.loser { color: #9a9a9a; font-weight: 500; }
         .status { font-size: 0.78rem; color: #666; background: #f0f0f0; padding: 4px 10px; border-radius: 10px; white-space: nowrap; display: inline-block; }
         .league-pill { font-size: 0.68rem; font-weight: 600; color: #555; padding: 3px 8px; border-radius: 999px; display: inline-flex; align-items: center; gap: 6px; letter-spacing: 0.2px; background: #f9f9f9; border: 1px solid #e0e0e0; }
         .league-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
@@ -45,6 +53,36 @@
         .bottom-nav a { flex: 1; text-decoration: none; text-align: center; padding: 12px; border-radius: 12px; font-weight: 700; }
         .bottom-nav a.primary { background: #111; color: #fff; }
         .bottom-nav a.secondary { background: #f0f0f0; color: #111; }
+
+        @media (prefers-color-scheme: dark) {
+            :root { --bg: #0f1113; --card-bg: #1c1f24; --primary: #f2f2f2; }
+            body { color: #e8e8e8; }
+            .date-nav { background: #171a1e; box-shadow: 0 2px 10px rgba(0,0,0,0.35); }
+            .nav-btn { background: #2a2f36; color: #eee; }
+            .nav-btn:hover { background: #353b44; }
+            .current-date { color: #f2f2f2; }
+            .filter-btn { background: #1c1f24; }
+            .filter-btn.no-dot { border-color: #444; color: #ccc; }
+            .filter-btn.no-dot.active { background: #eee; border-color: #eee; color: #111; }
+            .card { box-shadow: 0 4px 14px rgba(0,0,0,0.35); }
+            .team-name { color: #d7d7d7; }
+            .rank-badge { color: #9a9a9a; }
+            .record { color: #9a9a9a; }
+            .score { color: #f0f0f0; }
+            .score .score-sep { color: #666; }
+            .card.completed .status { background: #2a2f36; color: #aaa; }
+            .card.completed .team.loser { opacity: 0.38; }
+            .card.completed .team.winner .team-name { color: #fff; }
+            .card.completed .team.winner .rank-badge,
+            .card.completed .team.winner .record { color: #ddd; }
+            .card.completed .score .score-num.winner { color: #fff; }
+            .card.completed .score .score-num.loser { color: #777; }
+            .status { background: #2a2f36; color: #bbb; }
+            .league-pill { background: #23272e; border-color: #3a404a; color: #ddd; }
+            .bottom-nav { background: #171a1e; box-shadow: 0 -2px 10px rgba(0,0,0,0.35); }
+            .bottom-nav a.primary { background: #f2f2f2; color: #111; }
+            .bottom-nav a.secondary { background: #2a2f36; color: #eee; }
+        }
     </style>
 </head>
 <body>
@@ -337,11 +375,6 @@
                 if (game.completed) div.classList.add('completed');
                 div.style.setProperty('--home-color', game.home.color);
                 div.style.setProperty('--away-color', game.away.color);
-                if (game.completed) {
-                    if (parseInt(game.home.score) > parseInt(game.away.score)) div.classList.add('winner-home');
-                    else div.classList.add('winner-away');
-                }
-                
                 // Make entire card clickable to go to game page (we can get ESPN data for any game)
                 div.style.cursor = 'pointer';
                 div.onclick = () => location.href = `game.html?id=${game.id}&league=${game.league_key || ''}&homeColor=${encodeURIComponent(game.home.color)}&awayColor=${encodeURIComponent(game.away.color)}`;
@@ -351,8 +384,26 @@
 
                 const awayScoreVal = game.away?.score ?? game.away?.score?.value ?? '0';
                 const homeScoreVal = game.home?.score ?? game.home?.score?.value ?? '0';
+                const awayScoreNum = parseInt(awayScoreVal, 10);
+                const homeScoreNum = parseInt(homeScoreVal, 10);
                 const awayScoreStr = String(awayScoreVal);
                 const homeScoreStr = String(homeScoreVal);
+                const isScheduled = awayScoreStr === '0' && homeScoreStr === '0' && !game.completed && !isLive;
+                let awayResult = '';
+                let homeResult = '';
+                if (game.completed && Number.isFinite(awayScoreNum) && Number.isFinite(homeScoreNum)) {
+                    if (homeScoreNum > awayScoreNum) {
+                        div.classList.add('winner-home');
+                        homeResult = 'winner';
+                        awayResult = 'loser';
+                    } else if (awayScoreNum > homeScoreNum) {
+                        div.classList.add('winner-away');
+                        awayResult = 'winner';
+                        homeResult = 'loser';
+                    } else {
+                        div.classList.add('tie');
+                    }
+                }
 
                 const awayRank = normalizeRank(game.away?.rank);
                 const homeRank = normalizeRank(game.home?.rank);
@@ -378,19 +429,22 @@
                 
                 const leagueMeta = LEAGUE_META[game.league_key] || { label: game.league || 'SPORT', color: '#888' };
                 const badgeBg = hexToRgba(leagueMeta.color, 0.12);
+                const scoreHtml = isScheduled
+                    ? `<span class="score at-symbol">@</span>`
+                    : `<span class="score"><span class="score-num ${awayResult}">${awayScoreStr}</span><span class="score-sep">-</span><span class="score-num ${homeResult}">${homeScoreStr}</span></span>`;
                 div.innerHTML = `
                     <div class="matchup">
-                        <div class="team">
+                        <div class="team ${awayResult}">
                             <img src="${game.away.logo}">
                             <div class="team-name">${awayRank ? `<span class='rank-badge'>#${awayRank}</span>` : ''}${game.away.name}</div>
                             <div class="record">${game.away.record}</div>
                         </div>
                         <div class="score-board">
                             <span class="league-pill" style="border-color:${leagueMeta.color}; background:${badgeBg}"><span class="league-dot" style="background:${leagueMeta.color}"></span>${leagueMeta.label}</span>
-                            <span class="${awayScoreStr === '0' && homeScoreStr === '0' ? 'score at-symbol' : 'score'}">${awayScoreStr === '0' && homeScoreStr === '0' ? '@' : `${awayScoreStr}-${homeScoreStr}`}</span>
+                            ${scoreHtml}
                             <div class="status ${isLive ? 'live' : ''}">${displayStatus}</div>
                         </div>
-                        <div class="team">
+                        <div class="team ${homeResult}">
                             <img src="${game.home.logo}">
                             <div class="team-name">${homeRank ? `<span class='rank-badge'>#${homeRank}</span>` : ''}${game.home.name}</div>
                             <div class="record">${game.home.record}</div>
